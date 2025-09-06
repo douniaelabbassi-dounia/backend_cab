@@ -1,0 +1,27 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/aeroports"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ aeroport?.abbreviation }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="details-card">
+    <h2>{{ aeroport?.name }}</h2>
+    <!-- Conditional display for ORLY airport -->
+    <div *ngIf="aeroport?.abbreviation === 'ORLY'">
+      <p>Grande file: <span>{{ aeroport?.nbGrandeFile }}</span></p>
+      <p>Petite file: <span>{{ aeroport?.nbPetiteFile }}</span></p>
+    </div>
+    <!-- Display for other airports -->
+    <div *ngIf="aeroport?.abbreviation !== 'ORLY'">
+      <p>Nb file: <span>{{ aeroport?.nbFile }}</span></p>
+    </div>
+    <p>Nb de Van: <span>{{ aeroport?.nbVan }}</span></p>
+    <p>Attente BAT: <span>{{ aeroport?.attenteBAT }}</span></p>
+    <p>Sortie en: <span>{{ aeroport?.sortie30Min }}</span></p>
+    <p>Entrée en: <span>{{ aeroport?.entree30Min }}</span></p>
+  </div>
+</ion-content>

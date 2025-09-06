@@ -1,0 +1,154 @@
+<ion-content>
+  <div class="w-full ">
+    <div class="h-[13vh] w-full"
+      style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%">
+    </div>
+    <div class="w-full h-[87vh] bg-[#F3F4F7] px-4 overflow-auto">
+      <!-- Header -->
+      <div class="flex w-full py-5">
+        <div (click)="goPage('map')" class="pt-1.5">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6"
+            stroke="currentColor" class="h-5 w-5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+          </svg>
+        </div>
+        <div class="px-4 text-[15pt] font-bold leading-6">Mon profil</div>
+      </div>
+      <!-- End Header -->
+
+      <!-- Profile Info -->
+      <div class="w-full">
+        <!-- Profile Picture -->
+        <div class="mt-1 w-full">
+          <label class="montserrat-600 text-[13px]">Photo de profil</label>
+          <div class="mt-1 flex items-center">
+            <div class="w-[18vw]">
+              <img class="rounded-2xl"
+                [src]="profilInfo?.image?.url ? URL + 'storage/' + profilInfo?.image?.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
+            </div>
+            <div class="px-3">
+              <div>
+                <button
+                  class="montserrat-700 flex h-9 w-[40vw] items-center justify-center rounded-md bg-[#808E9B1A] text-[13px] tracking-wide text-[#808E9B] active:bg-[#808e9b37]"
+                  (click)="choiceModal('profil')">
+                  <span class="px-1">
+                    <img src="../../assets/icon/load.svg" class="pr-1" alt="" />
+                  </span>
+                  Changer
+                </button>
+              </div>
+              <div>
+                <span class="montserrat-400 text-[10px] font-light text-[#2D3748]">Largeur 300px ☓ Hauteur 300px</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- End Profile Picture -->
+
+        <!-- Profile Details -->
+        <div class="py-4">
+          <table class="text-[13px] border-separate border-spacing-y-2">
+            <tr>
+              <td class="montserrat-500 pr-5">Compte</td>
+              <td *ngIf="profilInfo?.isSubscribe === 1" class="py-[1px] pl-1 montserrat-700">PREMIUM</td>
+              <td *ngIf="profilInfo?.isSubscribe === 0" class="py-[1px] pl-1 montserrat-700">FREE</td>
+            </tr>
+            <tr>
+              <td class="montserrat-500 pr-5">ID</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.id }}</td>
+            </tr>
+
+            <!-- Chauffeur Specific Info -->
+            <tr *ngIf="profilInfo?.role.role_name === 'chauffeur'">
+              <td class="montserrat-500 pr-5">Pseudo</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.pseudo }}</td>
+            </tr>
+            <tr *ngIf="profilInfo?.role.role_name !== 'organisateur'">
+              <td class="montserrat-500 pr-5">Véhicule</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.carBrind }}</td>
+            </tr>
+            <tr *ngIf="profilInfo?.role.role_name !== 'organisateur'">
+              <td class="montserrat-500 pr-5">Catégorie</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.categorie }}</td>
+            </tr>
+            <tr *ngIf="profilInfo?.role.role_name !== 'organisateur'">
+              <td class="montserrat-500 pr-5">N° carte</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.numCardPro }}</td>
+            </tr>
+          </table>
+        </div>
+        <!-- End Profile Details -->
+
+        <!-- Friends Section -->
+        <hr />
+        <div class="py-3 w-full">
+          <label class="montserrat-500">Amis</label>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <ng-container *ngFor="let amis of friendsList; let i = index">
+              <div *ngIf="i < 7" class="h-[15vh] w-[27vw] flex flex-col items-center">
+                <div class="flex items-center overflow-hidden rounded">
+                  <a [routerLink]="'/profil/' + amis?.id">
+                    <img
+                      [src]="amis?.user?.image?.url ? URL + 'storage/' + amis?.user?.image?.url : 'https://media.istockphoto.com/default-avatar.jpg'"
+                      alt="{{ amis?.user?.firstName }}" class="h-full w-full">
+                  </a>
+                </div>
+                <div class="w-full text-center">
+                  <a [routerLink]="'/profil/' + amis.id">
+                    <label class="font-montserrat font-semibold">{{ amis?.user?.firstName }} {{ amis?.user?.lastName
+                      }}</label>
+                  </a>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+        </div>
+        <!-- End Friends Section -->
+
+        <!-- Reactions -->
+        <hr />
+        <div class="my-4">
+          <label class="montserrat-500">Réactions</label>
+          <div class="flex py-3">
+            <div class="flex items-center px-2">
+              <img class="pr-2" src="../../assets/icon/thumRed.svg" alt="" (click)="dislike()">
+              <span class="text-[#02263D] Montserrat-900">{{ profilInfo?.dislikes }}</span>
+            </div>
+            <div class="flex items-center px-2">
+              <img class="pr-2" src="../../assets/icon/thumGreen.svg" alt="" (click)="like()">
+              <span class="text-[#02263D] Montserrat-900">{{ profilInfo?.likes }}</span>
+            </div>
+          </div>
+        </div>
+        <!-- End Reactions -->
+
+        <!-- Participation -->
+        <hr />
+        <div class="my-4">
+          <label class="montserrat-500">Participation ({{currentParticipationPoints}}/50 points)</label>
+          <div class="w-full bg-[#D9D9D9] h-3 rounded-full mt-3">
+            <div #progressBar class="py-1.5 bg-gradient-to-r from-[#EB2F06] to-[#06FF3D] rounded-full"
+              [style.width.%]="participationProgress"></div>
+          </div>
+          <div *ngIf="participationProgress === 0" class="text-red-600 mt-2">
+            Vous devez participer pour continuer à utiliser les fonctionnalités.
+          </div>
+          <div *ngIf="participationProgress > 0" class="text-green-600 mt-2 text-sm">
+            Points perdus quotidiennement. Participez pour en gagner !
+          </div>
+        </div>
+        <!-- End Participation -->
+
+        <!-- Buttons -->
+        <div class="pb-10 pt-5">
+          <ion-button (click)="goTo('updateProfil')" color="transparent" style="text-transform: none;"
+            class="h-[40px] w-full rounded-xl border-2 bg-[#1D4999] active:bg-transparent border-[#1D4999] text-[13px] montserrat-700 tracking-wide text-white active:text-[#1D4999]">Modifier</ion-button>
+        </div>
+      </div>
+    </div>
+
+    <app-image-source-modal *ngIf="sourceModal" (choice)="choiceMethod($event)"
+      (closeModal)="choiceModal('')"></app-image-source-modal>
+    <input type="file" (change)="onFileSelected($event)" hidden #fileInput />
+  </div>
+</ion-content>

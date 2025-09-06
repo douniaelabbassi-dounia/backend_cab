@@ -1,0 +1,15 @@
+<label class="relative block pb-1 text-[13px]">
+  <span class="sr-only">Lieu</span>
+  <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+    <img src="../../../assets/icon/gpsInput.svg" alt="">
+  </span>
+  <input (keyup)="onAddressInput()" (focus)="focusInput = true" (blur)="focusInput=false" class="block w-full rounded border border-[#00396542] bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="ex : SDF, Opéra garnier,.." type="text" name="username" [(ngModel)]="lieu" />
+</label>
+<div *ngIf="isLoading && focusInput" class="absolute left-0 bg-white border border-[#00396542] max-h-[40vh] overflow-x-auto z-10">
+  <p class="p-2 text-center text-[13px] text-gray-500">Chargement...</p>
+</div>
+
+
+  <ul>
+    <li *ngFor="let suggestion of suggestions" (click)="onSelectAddress(suggestion)" class="p-1 text-[13px] border-b-1 border " title="Casablanca, Maroc">{{suggestion.display_name}}</li>
+  </ul>

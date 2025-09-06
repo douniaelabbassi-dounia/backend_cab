@@ -1,0 +1,101 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>Fil d'actualité</ion-title>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/map"></ion-back-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Zone de publication -->
+  <div class="new-post-container">
+    <ion-item>
+      <ion-input
+        placeholder="Quoi de neuf, {{ user?.firstName }} ?"
+        [(ngModel)]="newPost.description">
+      </ion-input>
+    </ion-item>
+
+    <div class="image-preview" *ngIf="newPost.image">
+      <img [src]="newPost.image" alt="Image preview" />
+    </div>
+
+    <!-- Catégories -->
+    <ion-item>
+      <ion-label>Catégorie</ion-label>
+      <ion-select
+        placeholder="Sélectionner"
+        [(ngModel)]="newPost.category">
+        <ion-select-option *ngFor="let category of categories" [value]="category">
+          {{ category }}
+        </ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <!-- Boutons -->
+    <ion-button (click)="openFileSelector()" fill="clear">
+      <ion-icon name="image-outline" slot="start"></ion-icon>
+      Photo / Vidéo
+    </ion-button>
+    <input type="file" id="fileInput" hidden (change)="onFileSelected($event)" />
+    <ion-button expand="block" (click)="addPost()">Publier</ion-button>
+  </div>
+
+  <!-- Liste des publications -->
+  <ion-list>
+    <ion-card *ngFor="let post of posts; let i = index">
+      <ion-card-header>
+        <ion-label>
+          <h2>{{ user?.firstName }}</h2>  
+          <p>{{ post?.date | date: 'medium' }}</p>
+          <p><strong>Catégorie :</strong> {{ post?.category }}</p>
+        </ion-label>
+      </ion-card-header>
+
+      <img *ngIf="post.image" [src]="post.image" alt="Post Image" />
+      <ion-card-content>
+        <p>{{ post?.description }}</p>
+
+        <!-- Boutons de publication -->
+        <div class="post-actions">
+          <ion-button fill="clear" color="danger" (click)="likePost(post)">
+            <ion-icon [name]="post.liked ? 'heart' : 'heart-outline'"></ion-icon>
+            {{ post.likes }}
+          </ion-button>
+          <ion-button fill="clear" color="warning" (click)="editPost(i)">
+            <ion-icon name="create-outline"></ion-icon>
+          </ion-button>
+          <ion-button fill="clear" color="danger" (click)="confirmDeletePost(i)">
+            <ion-icon name="trash-outline"></ion-icon>
+          </ion-button>
+        </div>
+
+        <!-- Section des commentaires -->
+        <div class="comment-section">
+          <p><strong>Commentaires :</strong> {{ post?.comments?.length || 0 }}</p>
+          <div *ngFor="let comment of post?.comments; let j = index">
+            <div class="comment">
+              <p><strong>{{ comment?.user }}</strong>: {{ comment?.text }}</p>
+              <ion-button fill="clear" color="warning" (click)="editComment(post, j)">
+                <ion-icon name="create-outline"></ion-icon>
+              </ion-button>
+              <ion-button fill="clear" color="danger" (click)="confirmDeleteComment(post, j)">
+                <ion-icon name="trash-outline"></ion-icon>
+              </ion-button>
+            </div>
+          </div>
+          <ion-item>
+            <ion-input
+              placeholder="Ajouter un commentaire..."
+              [(ngModel)]="post.newComment">
+            </ion-input>
+            <ion-button fill="clear" (click)="addComment(post)">
+              <ion-icon name="send-outline"></ion-icon>
+            </ion-button>
+          </ion-item>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </ion-list>
+</ion-content>

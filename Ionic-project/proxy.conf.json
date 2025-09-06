@@ -1,0 +1,14 @@
+{
+  "/api/*": {
+    "target": "https://alik144.sg-host.com",
+    "secure": false,
+    "changeOrigin": true,
+    "logLevel": "debug",
+    "pathRewrite": {
+      "^/api": ""
+    },
+    "headers": {
+      "Connection": "keep-alive"
+    }
+  }
+}

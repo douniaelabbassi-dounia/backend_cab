@@ -1,0 +1,31 @@
+<div class="h-[100vh] w-full p-6" style="background-image:url(../../assets/images/75cc21e4ed9812d19d358ea01026f59d.png); background-repeat:no-repeat; background-size:cover; background-position:90% 50%;">
+  <div class="absolute px-9 bottom-0 left-0 right-0 top-0 bg-gradient-to-b from-white via-white to-transparent">
+    <!-- head -->
+    <div class="mt-10 mb-8 flex h-20 w-full">
+      <div class=" text-[24px] font-bold montserrat-700 leading-9">Partager ma <br/>Localisation</div>
+    </div>
+    <!-- end head -->
+
+    <!-- image div -->
+    <div class=" w-full">
+      <div class="flex items-center justify-center">
+        <div class="flex w-full items-center justify-center px-5">
+          <img src="../../assets/images/accessPosition.png" width="150" />
+        </div>
+      </div>
+      <p class="mb-20 mt-8 text-center text-[14px] text-[#222222] montserrat-500">Veuillez accepter la localisation de votre téléphone pour offrir une bonne expérience.<br />Pour une meilleure efficacité du service, la localisation en arrière plan est recommandée.</p>
+    </div>
+    <!-- image div -->
+
+    <!-- inputs -->
+    <div class="my-4 font-[Montserrat]">
+      <div class="flex items-center">
+        <button (click)="getGeolocalisation()" class="h-11 w-full rounded-xl bg-[#1D4999] text-[13px] montserrat-700 tracking-wide text-white">Accorder partage de localisation</button>
+      </div>
+      <div class="text-center py-2">
+        <a routerLink="/map" class=" px-2 text-[14px] raleway-600 text-[#02263D]"><u>pas maintenant</u></a>
+      </div>
+    </div>
+    <!-- end inputs -->
+  </div>
+</div>

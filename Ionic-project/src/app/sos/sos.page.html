@@ -1,0 +1,16 @@
+<ion-content>
+  <!-- Bouton SOS -->
+  <div (click)="openSosModal()" class="flex items-center">
+    <span class="px-1">
+      <img src="../../assets/icon/sos.png" class="pr-1 w-6 h-6" alt="SOS">
+    </span>
+    <label class="text-sm">SOS</label>
+  </div>
+
+  <!-- Modal SOS -->
+  <ion-modal [isOpen]="isSosModalOpen" (didDismiss)="closeSosModal()">
+    <ng-template>
+      <app-sos></app-sos>
+    </ng-template>
+  </ion-modal>
+</ion-content>

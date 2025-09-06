@@ -1,0 +1,146 @@
+@import "@ionic/angular/css/core.css";
+
+/* Basic CSS for apps built with Ionic */
+@import "@ionic/angular/css/normalize.css";
+@import "@ionic/angular/css/structure.css";
+@import "@ionic/angular/css/typography.css";
+@import '@ionic/angular/css/display.css';
+
+/* Optional CSS utils that can be commented out */
+@import "@ionic/angular/css/padding.css";
+@import "@ionic/angular/css/float-elements.css";
+@import "@ionic/angular/css/text-alignment.css";
+@import "@ionic/angular/css/text-transformation.css";
+@import "@ionic/angular/css/flex-utils.css";
+
+
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&family=Tajawal:wght@400;500&family=Poppins:wght@200;300;400&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  font-family: "Montserrat";
+  font-weight: 600;
+  font-style: normal;
+}
+
+
+.center-v {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.selectStyle {
+  border: 1px solid #4c4c4c;
+  color: #303132;
+  border-radius: 3px;
+  font-size: 14px;
+  height: 35px;
+  background: #efefef;
+  min-height: 35px;
+  padding-left: 10%;
+  display: grid;
+  justify-content: center;
+}
+
+ion-button {
+  height: 35px;
+  --border-radius: 5px;
+}
+
+.selectedPageBackgroundColor {
+  --background: #4CAF50;
+}
+
+.NoConnectionBtnOkOrReload {
+  color: white;
+  text-decoration: underline;
+  border-radius: 3px;
+  padding: 3px;
+  background: #849423;
+}
+
+.NoConnectionBtnDetails {
+  color: #2b2b2b;
+  text-decoration: underline;
+  background: #adadad;
+  border-radius: 3px;
+  padding: 3px;
+}
+
+.NoConxPopUp {
+  position: absolute;
+  color: #474747;
+  background: #ffffff;
+  font-size: 12px;
+  padding: 5px;
+  top: 30vh;
+  width: 90vw;
+  left: 5vw;
+  height: 20vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  flex-direction: column;
+  z-index: 99;
+}
+
+.versionStyle {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  font-size: 8px;
+  color: #000000;
+}
+
+.btn-reset {
+  position: absolute;
+  top: 3%;
+  font-size: 15px;
+  right: 15px;
+  color: #177ccd;
+  background: #efefef;
+  padding: 5px;
+  border-radius: 3px;
+}
+
+.btn-reset:active {
+  background: #c5c5c5;
+  transition: ease-in;
+}
+
+.my-10 {
+  margin: 10px 0px;
+}
+
+.fz-15 {
+  font-size: 15px;
+}
+
+.fz-20 {
+  font-size: 20px;
+}
+
+.m-5-10 {
+  margin: 5px 10px;
+}
+
+.px-5 {
+  padding: 0px 5px;
+}
+
+.br-5 {
+  border-radius: 5px;
+}
+
+.textToLong {
+  white-space: nowrap;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+ 

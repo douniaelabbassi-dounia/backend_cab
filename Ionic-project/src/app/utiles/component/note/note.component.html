@@ -1,0 +1,95 @@
+<div class="h-[100vh] absolute top-0 left-0 right-0 bottom-0 flex justify-center items-center">
+  <div class=" w-[80vw] flex-col rounded bg-white px-7 py-5 z-30 overflow-auto" [ngClass]="{'h-[100vh]':makeBoxFullHeight}">
+    <div class="px-4 text-center font-[Montserrat] text-[18px] font-bold leading-6">Créer une <span class="font-bold text-[#1D4999]">note</span></div>
+    <div class="mb-1 mt-4 w-full">
+      <div>
+        <label class="text-[12px] montserrat-700">Adresse</label>
+        <label class="relative block text-[13px]">
+          <span class="sr-only text-[#02263D]">Adresse</span>
+          <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+            <img src="../../../assets/icon/gpsInput.svg" alt="">
+          </span>
+
+          <!-- ----------------- For openSteetMap ----------------- -->
+          <!-- (keyup)="onAddressInput()" -->
+          <!-- (focus)="focusInput = true" -->
+          <!-- (blur)="blurInput()" -->
+          <!-- ----------------- For openSteetMap ----------------- -->
+
+          <input  class="block w-full rounded border border-[#00396542] bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="ex : Tour eiffel,.." type="text" [(ngModel)]="lieu" (keyup)="onAddressInput()" (focus)="focusInput = true" (blur)="blurInput()"/>
+        </label>
+        <!-- ----------------- For openSteetMap (autocomplete) ----------------- -->
+        <div *ngIf="suggestions.length > 0 && focusInput" class="absolute left-12 bg-white border border-[#00396542] w-2/3 max-h-[40vh] overflow-x-auto z-10">
+          <ul>
+            <li *ngFor="let suggestion of suggestions" (click)="onSelectAddress(suggestion)" class="p-1 text-[11px] border-b-1 border">{{suggestion.display_name}}</li>
+          </ul>
+        </div>
+        <!-- ----------------- For openSteetMap (autocomplete) ----------------- -->
+
+      </div>
+
+      <div>
+        <label class="text-[12px] font-semibold">Jour</label>
+        <div class="flex flex-wrap w-full items-center">
+          <!-- this is cames from dayList array -->
+          <div *ngFor="let item of dayList" class="flex h-[25px] w-[60px] my-1 items-center rounded-full px-2  py-0.5  mr-1" [ngClass]="{'bg-[#1D4999] text-white':item.activated , 'bg-[#E6EAEC] text-[#02263D]': !item.activated}" >
+            <input (change)="selectDay(item, $event)" type="checkbox" name="days"/>
+            <span class="break-normal px-1 text-[11px]" >{{item.name}}</span>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[12px] font-semibold">Heure</label>
+        <label class="relative block pb-2 text-[13px]">
+          <span class="sr-only">Heure</span>
+          <input (click)="toggaleModal('time-begin')" readonly [value]="heureDebut" class="block w-full rounded border border-[#00396542] bg-white px-3 py-2 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="19:00" type="text" />
+        </label>
+        <app-time-picker *ngIf="displayModal.displayTimeBegin" (closeDateTime)="toggaleModal('time-begin')" (valueChange)="setValue($event, 'timeBegin')"></app-time-picker>
+      </div>
+
+      <div>
+        <label class="text-[12px] font-semibold">Type</label>
+        <label class="relative block pb-2 text-[13px]">
+          <span class="sr-only">Type</span>
+          <input class="block w-full rounded border border-[#00396542] bg-white px-3 py-2 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="ex : Entreprise, hotel, particulier..." type="text" [(ngModel)]="Type"/>
+        </label>
+      </div>
+
+      <div class="w-full">
+        <label class="text-[12px] font-semibold">Destination</label>
+        <label class="relative block pb-2 text-[13px]">
+          <span class="sr-only">Destination</span>
+          <input class="block w-full rounded border border-[#00396542] bg-white p-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Paris" type="text"  [(ngModel)]="destination"/>
+        </label>
+        <div class="relative flex h-[30px] w-full flex-row items-center overflow-y-hidden px-1">
+          <div class="flex">
+            <div class="text-[#1D4999]] mr-1 flex h-[25px] w-[120px] items-center rounded-full px-2 py-0.5" [ngClass]="{'bg-[#E6EAEC] ': friendsSelector != tous.value, 'bg-[#1D4999] text-white':  friendsSelector == tous.value}">
+              <input  type="radio" name="type" value="all" class="h-4 w-4" #tous (change)="selectSelectorFiends(tous.value)" />
+              <span class="px-1 text-[11px]">Tous les amis</span>
+            </div>
+
+            <div class="flex h-[25px] w-[100px] items-center rounded-full px-2 py-0.5 text-white" [ngClass]="{'bg-[#E6EAEC] ': friendsSelector != perso.value, 'bg-[#1D4999] text-white':  friendsSelector == perso.value}">
+              <input checked type="radio" name="type" value="personne" class="h-4 w-4" #perso (change)="selectSelectorFiends(perso.value)" />
+              <span class="px-1 text-[11px]">Personne</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-[12px] font-semibold">Commentaire</label>
+        <label class="relative block pb-2 text-[13px]">
+          <span class="sr-only">Commentaire</span>
+          <textarea class="block w-full rounded border border-[#00396542] bg-white px-3 py-2 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="écrire.." type="text"></textarea>
+        </label>
+      </div>
+
+      <div class="mt-2 flex justify-between">
+        <ion-button (click)="close()" style="--background:transparent; --background-activated:#3332; text-transform: none;" class="h-[40px] w-full rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]">Annuler</ion-button>
+        <ion-button (click)="submit()" style="--background:#1D4999;--background-activated:#173d84; text-transform: none;" class="mr-1 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">Valider</ion-button>
+      </div>
+    </div>
+  </div>
+  <div (click)="close()" class="absolute top-0 right-0 left-0 bottom-0 z-10 bg-[#0005]"></div>
+</div>

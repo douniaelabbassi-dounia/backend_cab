@@ -1,0 +1,7 @@
+<div class="absolute w-full top-0 bottom-0 left-0 right-0 flex items-center">
+  <div class="absolute p-5 w-[100vw] bg-[#F4F5F8]  rounded-lg z-30 ">
+    <ion-datetime id="datePicker" presentation="date"  [multiple]="multiDate" [(ngModel)]="date" [min]="minDate"></ion-datetime>
+    <ion-button (click)="updateValue()" style="--background:#1D4999;--background-activated:#173d84; text-transform: none;" class="mt-5 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">Valider</ion-button>
+  </div>
+  <div (click)="close()" class="bg-[#0000003d] absolute top-0 bottom-0 left-0 right-0"></div>
+</div>

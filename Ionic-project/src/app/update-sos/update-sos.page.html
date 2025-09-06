@@ -1,0 +1,71 @@
+<div>
+  <!-- En-tête -->
+  <div class="w-full h-[13vh] bg-cover bg-center" style="background-image:url(../../assets/images/Rectangle_39873.png);"></div>
+
+  <!-- Contenu principal -->
+  <div class="h-[89vh] w-full bg-[#F3F4F7] px-6 overflow-auto">
+    <!-- En-tête de la page -->
+    <div class="flex w-full py-5">
+      <div (click)="close()" class="pt-1.5">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.6"
+          stroke="currentColor"
+          class="h-5 w-5"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+          />
+        </svg>
+      </div>
+      <div class="px-4 text-[15pt] font-bold leading-6">Modifier SOS</div>
+    </div>
+    <!-- Fin de l'en-tête -->
+
+    <!-- Formulaire -->
+    <div class="w-full">
+      <!-- Champ "Message du SOS" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Message du SOS</label>
+        <input
+          [(ngModel)]="message"
+          name="message"
+          required
+          class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+          placeholder="Exemple : Urgent, besoin d'aide..."
+        />
+      </div>
+
+      <!-- Champ "Numéro de téléphone" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Numéro de téléphone</label>
+        <input
+          [(ngModel)]="phoneNumber"
+          name="phoneNumber"
+          required
+          class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+          placeholder="Exemple : +1234567890"
+        />
+      </div>
+
+      <!-- Boutons -->
+      <div class="mt-4 flex flex-col gap-2">
+        <button
+          (click)="close()"
+          class="h-[40px] rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]">
+          Annuler
+        </button>
+        <button
+          (click)="updatePoint()"
+          class="h-[40px] rounded-xl border-2 border-[#1D4999] bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">
+          Valider
+        </button>
+      </div>
+    </div>
+    <!-- Fin du formulaire -->
+  </div>
+</div>

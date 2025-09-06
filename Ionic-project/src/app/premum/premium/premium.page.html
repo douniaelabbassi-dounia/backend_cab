@@ -1,0 +1,89 @@
+<div class="h-[13vh] w-full" style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%"></div>
+
+<div class="h-[100vh] w-full overflow-auto bg-[#F3F4F7] px-6">
+  <!-- head -->
+  <div class="flex w-full py-5">
+    <div (click)="goMap()" class="pt-1.5">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-5 w-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </div>
+    <div class="px-4 text-[15pt] font-bold leading-6">Passer à la version
+      Premium</div>
+  </div>
+  <!-- end head -->
+
+  <!-- subscription pack -->
+
+  <div>
+    <!-- pack 1 -->
+    <div class=" flex flex-col px-3 py-5 my-4 rounded-md" [ngClass]="{'bg-[#0B1E41] text-white':selectedPack == '1', 'bg-white text-[#0B1E41] border-2 border-[#0B1E41]':selectedPack != '1', }">
+      <div class="flex justify-between w-full">
+          <label>Abonnement 1</label>
+          <input checked type="radio" name="abonnement" class="w-5 h-5" value="1"  #pack1 (change)="selectPack(pack1.value)" />
+      </div>
+      <span class="text-[11px] montserrat-300">Avantages</span>
+      <div class="my-3">
+        <div class="flex items-center py-1">
+          <img src="../../assets/icon/lightbluePlus.svg" class="pr-2" alt="">
+          <span class="text-[11px] montserrat-300">Automatisation du calcul de l’attente</span>
+        </div>
+        <div class="flex items-center py-1">
+          <img src="../../assets/icon/lightbluePlus.svg" class="pr-2" alt="">
+          <span class="text-[11px] montserrat-300">Accès aux notes</span>
+        </div>
+      </div>
+
+      <div class="my-3">
+        <div class="flex items-center py-1">
+          <span class="text-[20px] montserrat-300"><span class="text-[24px] font-bold">3 €</span>/mois</span>
+        </div>
+        <div class="flex items-center">
+          <span class="text-[11px] montserrat-300">* Avec un engagement de 1 an</span>
+        </div>
+      </div>
+      <span class="text-[11px] montserrat-300">🎁  Les deux premiers mois sont offerts aux 
+        <b>nouveaux inscrits</b></span>
+    </div>
+    <!-- end pack 1 -->
+
+     <!-- pack 2 -->
+     <div class="flex flex-col px-3 py-5 my-4 rounded-md" [ngClass]="{'bg-[#0B1E41] text-white':selectedPack == '2', 'bg-white text-[#0B1E41] border-2 border-[#0B1E41]':selectedPack != '2', }">
+      <div class="flex justify-between w-full">
+          <label>Abonnement 2</label>
+          <input type="radio" name="abonnement" class="w-5 h-5" value="2" #pack2 (change)="selectPack(pack2.value)" />
+      </div>
+      <span class="text-[11px] montserrat-400">Avantages</span>
+      <div class="my-3">
+        <div class="flex items-center py-1">
+          <img src="../../assets/icon/lightbluePlus.svg" class="pr-2" alt="">
+          <span class="text-[11px] montserrat-400">Automatisation du calcul de l’attente</span>
+        </div>
+        <div class="flex items-center py-1">
+          <img src="../../assets/icon/lightbluePlus.svg" class="pr-2" alt="">
+          <span class="text-[11px] montserrat-400">Accès aux notes</span>
+        </div>
+      </div>
+
+      <div class="my-3">
+        <div class="flex items-center py-1">
+          <span class="text-[20px] montserrat-400"><span class="text-[24px] font-bold">4,99 €</span>/mois</span>
+        </div>
+        <div class="flex items-center">
+          <span class="text-[11px] montserrat-400">* Sans engagement</span>
+        </div>
+      </div>
+      <span class="text-[11px] montserrat-400">🎁  Les deux premiers mois sont offerts aux 
+        <b>nouveaux inscrits</b></span>
+    </div>
+    <!-- end pack 2 -->    
+  </div>
+  <!-- end subscription pack -->
+
+  <div class="flex flex-col items-center py-5">
+    <ion-button (click)="continue()" color="transparent" style="--border-radius:0.75rem; text-transform: none;" class="montserrat-600 my-1 h-9 w-full rounded-xl bg-[#1D4999] text-[13px] tracking-wide text-white">Continuer</ion-button>
+    <ion-button (click)="goMap()" color="transparent" style="--border-radius:0.75rem; text-transform: none;" class="montserrat-700 my-1 h-9 w-full rounded-xl border-2 border-[#1D4999] text-[13px] tracking-wide text-[#1D4999]">Annuler</ion-button>
+  </div>
+
+
+</div>

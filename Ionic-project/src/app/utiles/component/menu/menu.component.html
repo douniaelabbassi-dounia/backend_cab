@@ -1,0 +1,82 @@
+<!-- Menu -->
+<div class="absolute bg-white top-0 bottom-0 left-0 w-[200px] z-30"
+  style="box-shadow: #333 0px 0px 30px 0px; padding-left:20px">
+  <!-- head -->
+  <div class="flex h-20 w-full py-5">
+    <div (click)="close()" class="pt-1">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor"
+        class="h-5 w-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </div>
+    <div class="w-[200px] px-4 text-[15pt] font-bold leading-6 font-[Montserrat]">Menu</div>
+  </div>
+  <!-- end head -->
+
+  <!-- Profile -->
+  <div (click)="goTo('profil')" class="w-full">
+    <div class="flex items-center">
+      <div class="w-[50px]">
+        <img class="rounded-2xl"
+          [src]="userinfo?.image?.url? URL + 'storage/' + userinfo?.image?.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
+      </div>
+      <div class="w-3/5 pl-3">
+        <!-- <div *ngIf="userinfo?.role?.role_name == 'organisateur'" class="flex flex-col">
+          <span class="font-[Montserrat] text-[10px] font-light text-[#2D3748]">Pseudo</span>
+          <label class="text-[13px] font-semibold">Ayman Fadli</label>
+        </div> -->
+        <div class="flex flex-col">
+          <span class="font-[Montserrat] text-[10px] font-light text-[#2D3748]">Pseudo</span>
+          <label class="text-[13px] font-semibold">{{userinfo?.firstName}} {{userinfo?.lastName}}</label>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- end Profile -->
+
+  <!-- Menu items  -->
+  <div class="my-10 font-">
+    <ul class="font-[Montserrat] font-semibold text-[13px]">
+      <li class="my-4">
+        <button class="flex justify-between items-center w-full text-left p-2 rounded-md hover:bg-gray-200"
+          (click)="toggleSubMenu('aeroport')" style="background: transparent;">
+          <span>Aéroport</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transform transition-transform"
+            [class.rotate-180]="activeMenu === 'aeroport'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <!-- Submenu -->
+        <ul *ngIf="activeMenu === 'aeroport'" class="mt-2 space-y-2 border-l-2 border-gray-300 pl-4">
+          <li>
+            <a (click)="goTo('aeroports')" class="block py-1 px-2 rounded-md hover:bg-blue-100">
+              Aéroport Détail
+            </a>
+          </li>
+          <li>
+            <a (click)="goTo('aeroport-attente')" class="block py-1 px-2 rounded-md hover:bg-blue-100">
+              Attente Total
+            </a>
+          </li>
+        </ul>
+      </li>
+
+      <li class="my-4"><a (click)="goTo('list-evenement')">Liste des événements</a></li>
+      <li class="my-4"><a (click)="goTo('list-notes')">Liste des memos</a></li>
+      <li class="my-4"><a (click)="save()">Agenda</a></li>
+      <li class="my-4"><a (click)="goTo('premium')">Passer à la version Pro</a></li>
+      <li class="my-4"><a (click)="goTo('info')">Fil d'actualité</a></li> <!-- Nouvelle entrée -->
+      <li class="my-4 mt-10"><a (click)="goTo('setting')">Paramètres</a></li>
+      <li class="my-4"><a (click)="goTo('faq')">Aide et FAQ</a></li>
+      <li class="my-4"><a (click)="goTo('avis')">Suggestions et avis</a></li>
+      <li class="my-4"><a (click)="goTo('mention-legal')">Conditions générales d'utilisation</a></li>
+      <li class="my-4 mt-10">
+        <div (click)="goTo('logout')">Déconnecter</div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- end Menu items  -->
+</div>
+<div (click)="close()" class="bg-[#00000048] top-0 left-0 right-0 bottom-0 absolute z-10"></div>
+<!-- end Menu -->

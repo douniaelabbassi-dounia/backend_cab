@@ -1,0 +1,19 @@
+/* Add this to your global Tailwind styles or in a component-specific CSS file */
+ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  
+  button {
+    @apply w-full text-left p-2 bg-gray-100 hover:bg-gray-200 rounded-md flex items-center justify-between;
+  }
+  
+  ul ul {
+    @apply ml-6 mt-2 space-y-2 border-l-2 border-gray-300 pl-4;
+  }
+  
+  a {
+    @apply block py-1 px-2 rounded-md hover:bg-blue-100;
+  }
+  

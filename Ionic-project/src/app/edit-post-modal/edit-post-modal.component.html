@@ -1,0 +1,51 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-title>Modifier la publication</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="cancel()">FERMER</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+
+  <!-- Modifier la description -->
+  <ion-item>
+    <ion-label position="floating">Description</ion-label>
+    <ion-input 
+      [(value)]="updatedDescription"
+      (ionInput)="onDescriptionInput($event)"
+    ></ion-input>
+  </ion-item>
+  <!-- Modifier la catégorie -->
+  <ion-item>
+    <ion-label>Catégorie</ion-label>
+    <ion-select
+      placeholder="Sélectionner"
+      [(value)]="updatedCategory"
+      (ionChange)="onCategoryChange($event)"
+      >
+      <ion-select-option *ngFor="let category of categories" [value]="category">
+        {{ category }}
+      </ion-select-option>
+    </ion-select>
+  </ion-item>
+
+  <!-- Aperçu de l'image -->
+  <div class="image-preview" *ngIf="updatedImage">
+    <img [src]="updatedImage" alt="Image preview" />
+  </div>
+
+  <!-- Bouton pour modifier l'image -->
+  <ion-button expand="block" fill="outline" (click)="openFileSelector()">
+    <ion-icon slot="start" name="image-outline"></ion-icon>
+    MODIFIER L'IMAGE
+  </ion-button>
+  <input type="file" id="modalFileInput" hidden (change)="onFileSelected($event)" />
+
+  <!-- Bouton pour sauvegarder -->
+  <ion-button expand="block" color="success" (click)="saveChanges()">
+    <ion-icon slot="start" name="checkmark-done-outline"></ion-icon>
+    SAUVEGARDER
+  </ion-button>
+</ion-content>

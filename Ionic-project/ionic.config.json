@@ -1,0 +1,13 @@
+{
+  "name": "lesieur Tab",
+  "integrations": {
+    "cordova": {}
+  },
+  "type": "angular",
+  "proxies": [
+    {
+      "path": "/api",
+      "proxyUrl": "https://alik144.sg-host.com"
+    }
+  ]
+}

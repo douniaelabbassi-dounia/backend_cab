@@ -1,0 +1,438 @@
+<ion-content>
+
+  <div class="h-full w-full overflow-y-auto">
+
+    <!-- head -->
+    <div class="absolute top-0 flex flex-col w-full  bg-gradient-to-b from-white to-[#fff0]">
+
+      <!-- pub -->
+      <div *ngIf="skipedPub === '1'" class="w-full h-[80px]" (click)="pubClick()"
+        style="z-index: 1;background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover; background-position:100% 50%;">
+      </div>
+      <!-- end pub -->
+
+      <!-- navbar -->
+      <div *ngIf="skipedPub === '1'" class="w-full h-[45px] flex relative my-2" style="z-index: 1;">
+        <div (click)="displayToggle('menu')" class=" w-[20vw] flex justify-center items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+            <path fill-rule="evenodd"
+              d="M3 6.75A.75.75 0 0 1 3.75 6h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 6.75ZM3 12a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 12Zm0 5.25a.75.75 0 0 1 .75-.75h16.5a.75.75 0 0 1 0 1.5H3.75a.75.75 0 0 1-.75-.75Z"
+              clip-rule="evenodd" />
+          </svg>
+        </div>
+
+        <div class="w-full">
+          <div class=" w-full flex justify-center items-center">
+            <label class="relative block text-[13px] w-full">
+              <span class="sr-only">search</span>
+              <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#000000]">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4">
+                  <path fill-rule="evenodd"
+                    d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z"
+                    clip-rule="evenodd" />
+                </svg>
+              </span>
+              <input type="text"
+                                 name="search"
+                                 [(ngModel)]="searchinput"
+                                 (input)="onAddressInput()"
+                                 placeholder="Rechercher une adresse..."
+                                 class="block w-full rounded-md border-0 py-1.5 pl-10 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6">
+              <!-- <input id="pac-input" type="text" class="block w-[65vw] rounded-xl border bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Recherche..." /> -->
+            </label>
+          </div>
+          <!-- openStreetMap autocomplete -->
+          <!-- This block was missing. It will now display the suggestions fetched from the API. -->
+          <ul *ngIf="suggestions.length > 0" class="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 shadow-lg max-h-60 overflow-auto">
+              <li *ngFor="let suggestion of suggestions" (click)="goToLocation(suggestion)"
+                  class="p-2 cursor-pointer hover:bg-gray-100 text-sm text-gray-800 border-b border-gray-200">
+                  {{suggestion.display_name}}
+              </li>
+          </ul>
+          <!-- openStreetMap autocomplete -->
+
+        </div>
+
+        <div class="navbar-button w-[25vw] flex justify-center items-center relative">
+          <!-- Clock button (shows when overlay is closed) -->
+          <span *ngIf="!displayer.horlogDisplay" (click)="displayToggle('horloge'); $event.stopPropagation()" class="w-10 h-10 bg-white flex justify-center items-center rounded-3xl drop-shadow-md border transition-all duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+              stroke="currentColor" class="w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+          </span>
+          <!-- Close button (shows when overlay is open) -->
+          <div *ngIf="displayer.horlogDisplay" (click)="displayToggle('horloge'); $event.stopPropagation()" class="w-10 h-10 bg-white flex justify-center items-center rounded-3xl drop-shadow-md border cursor-pointer transition-all duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-6 h-6 text-black">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <!-- horloge overlay -->
+          <div *ngIf="displayer.horlogDisplay && !showTimePickerModal" class="absolute top-12 right-2 z-30">
+            <div class="bg-white rounded-2xl shadow-xl border p-4 min-w-[180px]">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-medium text-gray-700">Set Time</h3>
+              </div>
+              <div (click)="showTimePicker(); $event.stopPropagation()" class="flex items-center justify-center space-x-4 cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors relative">
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-gray-800 bg-gray-50 rounded-lg px-3 py-2 min-w-[50px]">{{timeValue.hour || '07'}}</div>
+                  <div class="text-xs text-gray-500 mt-1">Hours</div>
+                </div>
+                <div class="text-2xl font-bold text-gray-400">:</div>
+                <div class="text-center">
+                  <div class="text-2xl font-bold text-gray-800 bg-gray-50 rounded-lg px-3 py-2 min-w-[50px]">{{timeValue.min || '00'}}</div>
+                  <div class="text-xs text-gray-500 mt-1">Minutes</div>
+                </div>
+              </div>
+              <div class="absolute -top-2 right-5 w-4 h-4 bg-white border-l border-t transform rotate-45"></div>
+            </div>
+          </div>
+          <!-- end horloge overlay -->
+        </div>
+        <!-- horloge backdrop -->
+        <div (click)="displayToggle('horloge'); $event.stopPropagation()" *ngIf="displayer.horlogDisplay"
+          class="fixed inset-0 bg-black/20 z-10"></div>
+        <!-- end horloge backdrop -->
+        
+        <!-- time picker modal -->
+        <div *ngIf="showTimePickerModal" class="fixed inset-0 flex justify-center items-center z-50">
+          <div class="p-5 w-[100vw] bg-[#F4F5F8] rounded-lg z-30 mx-4 max-w-sm">
+            <ion-datetime presentation="time" (ngModelChange)="updateTimeValue($event)" [(ngModel)]="currentTime"></ion-datetime>
+            <ion-button (click)="submitTime()" style="--background:#1D4999;--background-activated:#173d84; text-transform: none;" class="mt-5 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">Valider</ion-button>
+          </div>
+          <div (click)="closeTimePicker()" class="absolute inset-0 bg-black/50 -z-10"></div>
+        </div>
+        <!-- end time picker modal -->
+      </div>
+      <!-- end navbar -->
+    </div>
+    <!-- end head -->
+
+
+    <!-- on boarding -->
+    <app-onboarding *ngIf="displayer.onboarding && showOnboarding === '0'"
+      (displayer)="displayToggle('onboarding')"></app-onboarding>
+    <!-- end on boarding -->
+
+    <!-- Finish Polyline Drawing Button -->
+    <div *ngIf="isDrawingPolyline" class="absolute bottom-24 left-1/2 -translate-x-1/2 z-20">
+      <button (click)="finishPolylineDrawing()" class="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-lg active:bg-red-700">
+        Terminer la modification
+      </button>
+    </div>
+
+    <!-- Pub -->
+    <div *ngIf="skipedPub === '0'" class="w-[100vw] h-[100vh] relative z-10 "
+      style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat;  background-size: cover; background-position:55% 100%">
+    </div>
+    <!-- end Pub -->
+
+
+
+    <!-- map OpenStreetMap -->
+    <!-- <div #map id="map" class=" z-0 fixed" [ngClass]="{'w-[100vw] h-[100vh]': skipedPub == '1'}" ></div> -->
+    <div #map id="map" class=" z-0 fixed" class="z-0 fixed w-[100vw] h-[100vh]"
+      [style.visibility]="skipedPub === '1' ? 'visible' : 'hidden'"></div>
+
+    <!-- end map -->
+
+    <!-- buttons -->
+
+    <div
+      class="absolute z-10 w-full h-5/12 bg-gradient-to-t from-white via-[#ffffffbc] to-[#fff0] flex items-end bottom-0 text-[12px] font-[Montserrat] font-bold pointer-events-none">
+      <div class="flex flex-col justify-end w-full h-[25vh] px-4 pt-4 pb-10 text-white">
+        <!-- ignore pub -->
+        <div *ngIf=" skipedPub ==='0'" class=" w-full h-[20vh] flex justify-end items-center my-8">
+          <div *ngIf="conteurPub > 0 " class="bg-[#0000009a] px-7 py-2 pointer-events-auto">
+            <span>{{conteurPub}} secondes</span>
+          </div>
+          <div *ngIf="conteurPub === 0 && skipedPub === '0'" (click)="ignorePub()" class="bg-[#0000009a] px-7 py-2 pointer-events-auto">
+            <span>ignorer l’annonce</span>
+          </div>
+        </div>
+        <!-- ignore pub -->
+        <!-- GPS -->
+        <div *ngIf="!displayer.showPub && !selectedBtn.note"
+          class="fixed right-4 top-[620px] transform -translate-y-1/2 z-50 flex flex-col space-y-1">
+          <!-- Refresh Map Button -->
+          <div (click)="forceMapRefresh()"
+            class="w-[45px] h-[45px] text-black bg-white flex justify-center items-center rounded-full drop-shadow-md border pointer-events-auto">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+              stroke="currentColor" class="w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </div>
+          <div (click)="locateCurrentPosition()"
+            class="w-[45px] h-[45px] text-black bg-white flex justify-center items-center rounded-full drop-shadow-md border pointer-events-auto">
+            <img src="../../assets/icon/gps.svg" class="w-7 h-7" alt="Locate">
+          </div>
+        </div>
+        <!-- end GPS -->
+
+        <div class="flex justify-around relative">
+          <div *ngIf="displayer.showPub || (!displayer.showPub && !displayer.autreDisplay)"
+            class="w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+            <span class="px-2"></span>
+          </div>
+
+
+        </div>
+
+        <div class="flex flex-col">
+
+          <div *ngIf="displayer.autreDisplay" longPress (executeLongClick)="handlingLongClick('station')"
+  class="bg-[#6A89CC] w-[40vw] h-[45px] m-1 ml-3 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto"
+  (click)="handleStationClick()"
+  [ngClass]="{
+    'opacity-40': transparent.station,
+    'scale-105 ring-2 ring-indigo-300': selectedBtn.station && !transparent.station,
+    'opacity-50': isTrialExpired || !heldMarker
+  }"
+  [ngStyle]="{
+    'box-shadow': selectedBtn.station ? '0px 4px 12px rgba(106, 137, 204, 0.5)' : '',
+    'border': selectedBtn.station ? '2px solid #6A89CC' : '2px solid transparent'
+  }">
+  <div *ngIf="transparent.station" (click)="$event.stopPropagation(); clearLongPress('station')" class="absolute w-[40vw] h-10"></div>
+  <span class="px-2">
+    <img src="../../assets/icon/station.svg" class="pr-1 w-6 h-6" 
+         [style.filter]="selectedBtn.station && !transparent.station ? 'brightness(1.2)' : ''" alt="">
+  </span>
+  <label class="text-[13px]" [ngClass]="{'font-bold': selectedBtn.station && !transparent.station}">Station</label>
+</div>
+
+          
+          <div *ngIf="displayer.showPub || (!displayer.showPub && !displayer.autreDisplay)"
+            class="w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+            <span class="px-2 ">
+            </span>
+          </div>
+          <div>
+            <div>
+              <div *ngIf="displayer.autreDisplay" longPress (executeLongClick)="handlingLongClick('sos')"
+  class="bg-yellow-400 w-[40vw] h-[45px] m-1 ml-3 flex items-center justify-center rounded-lg relative transition-all duration-300 pointer-events-auto"
+  (click)="displayToggle('sos')"
+  [ngClass]="{
+    'opacity-40': transparent.sos,
+    'scale-105 ring-2 ring-yellow-300': selectedBtn.sos && !transparent.sos,
+    'pointer-events-none': isTrialExpired,
+    'cursor-not-allowed': isTrialExpired
+  }"
+  [ngStyle]="{
+    'box-shadow': selectedBtn.sos ? '0px 4px 12px rgba(250, 204, 21, 0.5)' : '',
+    'border': selectedBtn.sos ? '2px solid #facc15' : '2px solid transparent'
+  }">
+  <div *ngIf="transparent.sos" (click)="$event.stopPropagation(); clearLongPress('sos')" class="absolute w-[40vw] h-10"></div>
+  <div class="flex items-center justify-center">
+    <span class="px-1">
+      <img src="../../assets/icon/sos.png" class="pr-1 w-6 h-6" 
+           [style.filter]="selectedBtn.sos && !transparent.sos ? 'brightness(1.2)' : ''" alt="">
+    </span>
+    <label class="text-sm" [ngClass]="{'font-bold': selectedBtn.sos && !transparent.sos}">SOS</label>
+  </div>
+</div>
+
+              
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-around">
+          <div longPress (executeLongClick)="handlingLongClick('event')"
+  class="bg-purple-500 w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto"
+  (click)="displayToggle('evenements')"
+  [ngClass]="{
+    'opacity-40': transparent.event,
+    'scale-105 ring-2 ring-purple-300': selectedBtn.event && !transparent.event
+  }"
+  [ngStyle]="{
+    'box-shadow': selectedBtn.event ? '0px 4px 12px rgba(147, 51, 234, 0.5)' : '',
+    'border': selectedBtn.event ? '2px solid #9333ea' : '2px solid transparent'
+  }">
+  <div *ngIf="transparent.event" (click)="$event.stopPropagation(); clearLongPress('event')" class="absolute w-[40vw] h-10"></div>
+  <div class="flex items-center justify-center">
+    <span class="px-1">
+      <img src="../../assets/icon/tickette.svg" class="pr-1 w-6 h-6" 
+           [style.filter]="selectedBtn.event && !transparent.event ? 'brightness(1.2)' : ''" alt="">
+    </span>
+    <label class="text-[13px]" [ngClass]="{'font-bold': selectedBtn.event && !transparent.event}">Évènement</label>
+  </div>
+</div>
+
+          <div longPress (executeLongClick)="handlingLongClick('autre')"
+  class="bg-[#1ABCFE] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg drop-shadow-md transition-all duration-300 pointer-events-auto"
+  (click)="displayToggle('autre')"
+  [ngClass]="{
+    'opacity-40': transparent.autre
+  }">
+  <div *ngIf="transparent.autre" (click)="$event.stopPropagation(); clearLongPress('autre')" class="absolute w-[40vw] h-10"></div>
+  <div>
+    <span></span><label class="text-[13px]">Autre</label>
+  </div>
+</div>
+        </div>
+        <div class="flex justify-around">
+          <div longPress (executeLongClick)="handlingLongClick('affluence')"
+  class="bg-[#EB2F06] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto"
+  (click)="displayToggle('affluence')"
+  [ngClass]="{
+    'opacity-40': transparent.affluence,
+    'scale-105 ring-2 ring-red-300': selectedBtn.affluence && !transparent.affluence
+  }"
+  [ngStyle]="{
+    'box-shadow': selectedBtn.affluence ? '0px 4px 12px rgba(235, 47, 6, 0.5)' : '',
+    'border': selectedBtn.affluence ? '2px solid #EB2F06' : '2px solid transparent'
+  }">
+  <div *ngIf="transparent.affluence" (click)="$event.stopPropagation(); clearLongPress('affluence')" class="absolute w-[40vw] h-10"></div>
+  <div class="flex items-center justify-center">
+    <span class="px-1">
+      <img src="../../assets/icon/groupPub.svg" class="pr-1 w-6 h-6" 
+           [style.filter]="selectedBtn.affluence && !transparent.affluence ? 'brightness(1.2)' : ''" alt="">
+    </span>
+    <label class="text-[13px]" [ngClass]="{'font-bold': selectedBtn.affluence && !transparent.affluence}">Affluence</label>
+  </div>
+</div>
+
+         <div longPress (executeLongClick)="handlingLongClick('note')"
+  class="relative bg-[#1D4999] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto" 
+  (click)="displayToggle('note')"
+  [ngClass]="{
+    'opacity-40': transparent.note,
+    'scale-105 ring-2 ring-blue-300': selectedBtn.note && !transparent.note
+  }" 
+  [ngStyle]="{
+    'box-shadow': selectedBtn.note ? '0px 4px 12px rgba(29, 73, 153, 0.5)' : '',
+    'border': selectedBtn.note ? '2px solid #1D4999' : '2px solid transparent'
+  }">
+  <div *ngIf="transparent.note" (click)="$event.stopPropagation(); clearLongPress('note')" class="absolute w-[40vw] h-10"></div>
+  <div class="flex items-center justify-center">
+    <span class="px-1">
+      <img src="../../assets/icon/note.svg" class="pr-1 w-4 h-4" 
+           [style.filter]="selectedBtn.note && !transparent.note ? 'brightness(1.2)' : ''" alt="">
+    </span>
+    <label [ngClass]="{'font-bold': selectedBtn.note && !transparent.note}">Note</label>
+  </div>
+</div>
+
+        </div>
+      </div>
+    </div>
+    <!-- end buttons -->
+
+
+    <!-- ------------------------ models ---------------------- -->
+    <!-- menu -->
+    <app-menu *ngIf="displayer.menuDisplay" [timer]="positionTimer" [markertimer]="MarkerTimer"
+      [menuDisplay]="displayer.menuDisplay" (closeMenu)="displayToggle('menu')" (openNotesList)="openNotesOverlay()"
+      (removeAllMarkers)="removeAllMarkers()"></app-menu>
+    <!-- end menu -->
+    <app-affluence *ngIf="displayer.affluenceDisplay" [affluenceDisplay]="displayer.affluenceDisplay"
+      (closeAffluence)="displayToggle('affluence')" (addAffluence)="addMarker('red', $event)"></app-affluence>
+    <app-evenements *ngIf="displayer.evenementsDisplay" [evenementsDisplay]="displayer.evenementsDisplay"
+      (closeEvenements)="displayToggle('evenements')" (submitEvent)="addMarker('event', $event)"></app-evenements>
+    <app-status *ngIf="displayer.statusDisplay" [statusDisplay]="displayer.statusDisplay"
+      (closeStatus)="displayToggle('status')" (validateStation)="addMarker('green',$event)"></app-status>
+    <app-note *ngIf="displayer.noteDisplay" [noteDisplay]="displayer.noteDisplay" (closeNote)="displayToggle('note')"
+      (submitNote)="addMarker('note',$event)"></app-note>
+    <app-list-points *ngIf="displayer.listPointDisplay" [listPointsDisplay]="displayer.listPointDisplay"
+      (closelistPoints)="displayToggle('list-points')"></app-list-points>
+    <app-delete-confirmation *ngIf="displayer.deletePointConfirmation" [content]="confirmationContent"
+      [selectedPointId]="selectedpointId" [pointType]="selectedPointType"
+      (closeConfirmation)="displayToggle('delete-confirmation')"
+      (deleteItem)="deletePoint($event)"></app-delete-confirmation>
+    <app-sos *ngIf="displayer.sosDisplay" [sosDisplay]="displayer.sosDisplay" (closeSos)="displayToggle('sos')"
+      (validateSos)="addMarker('jaune',$event)" [editMode]="pointToEdit"></app-sos>
+    <app-edit-confirmation *ngIf="displayer.editPointConfirmation" [selectedPointId]="selectedPointId"
+      [pointType]="selectedPointType" [originalPoint]="pointToEdit"
+      (closeConfirmation)="displayToggle('edit-confirmation')" (saveEdit)="updatePoint($event)">
+    </app-edit-confirmation>
+
+    <!-- Note Overlay - Notebook Style UI -->
+    <div *ngIf="displayer.noteOverlayDisplay" class="note-overlay-container">
+      <!-- Background overlay -->
+      <div class="note-overlay-backdrop" (click)="closeNoteOverlay()"></div>
+      
+      <!-- Notebook UI -->
+      <div class="notebook-container">
+        <!-- Notebook Header -->
+        <div class="notebook-header">
+          <div class="notebook-rings">
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+          </div>
+          <h3 class="notebook-title">📔 Mes Memos</h3>
+          <button class="close-notebook-btn" (click)="closeNoteOverlay()">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Notebook Content -->
+        <div class="notebook-content">
+          <!-- Ruled lines background -->
+          <div class="notebook-lines"></div>
+          
+          <!-- Notes list -->
+          <div class="notes-list">
+            <div class="note-item" *ngFor="let note of objectblueMarkers; let i = index">
+              <div class="note-header">
+                <span class="note-number">{{ i + 1 }}.</span>
+                <span class="note-date">{{ note.created_at | date:'dd/MM/yyyy HH:mm' }}</span>
+              </div>
+              <div class="note-content">
+                <p class="note-text">{{ note.commentaire || 'Note sans contenu' }}</p>
+                <div class="note-location" *ngIf="note.lieu">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                  </svg>
+                  <span>{{ note.lieu }}</span>
+                </div>
+              </div>
+              <div class="note-actions">
+                <button class="note-action-btn edit-btn" (click)="editNote(note)">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                  </svg>
+                </button>
+                <button class="note-action-btn delete-btn" (click)="deleteNote(note)">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                  </svg>
+                </button>
+                <button class="note-action-btn map-btn" (click)="goToNoteLocation(note)">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div class="empty-notes" *ngIf="objectblueMarkers.length === 0">
+              <div class="empty-icon">📝</div>
+              <h4>Aucune note</h4>
+              <p>Vos notes apparaîtront ici une fois créées sur la carte.</p>
+            </div>
+          </div>
+
+          <!-- Add new note button -->
+          <div class="add-note-section">
+            <button class="add-note-btn" (click)="displayToggle('note'); closeNoteOverlay()">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Ajouter une nouvelle note
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- -------------------- end models ---------------------- -->
+  </div>
+</ion-content>

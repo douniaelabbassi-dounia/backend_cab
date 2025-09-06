@@ -1,0 +1,68 @@
+<div class="h-[100vh] w-full bg-[#F3F4F7] p-8">
+  <!-- head -->
+  <ion-row class="flex h-20 w-full mt-10 mb-5">
+    <!-- <div (click)="back()" class="pt-1.5">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-5 w-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </div> -->
+    <div class=" pl-4 text-[24px] montserrat-700 leading-9">Accéder à mon <br/>compte</div>
+  </ion-row>
+  <!-- end head -->
+
+  <!-- inputs -->
+  <div class="my-4">
+    <ion-label class="relative block text-[14px]" [ngClass]="{'mt-3': error_messages[0].display || error_messages[2].display, 'py-3': !error_messages[0].display && !error_messages[2].display}">
+      <span class="sr-only">username</span>
+      <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+       <img src="../../assets/icon/user.svg" alt="">
+      </span>
+      <input class="raleway-500 block w-full rounded border border-[#00396542] raleway-500 bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Email" type="email" name="username" [(ngModel)]="email" />
+    </ion-label>
+    <div class="flex flex-col">
+      <span  *ngIf="error_messages[0].display" class="text-red-600 font-bold text-[10px]">{{error_messages[0].message}}</span>
+      <span *ngIf="error_messages[2].display" class="text-red-600 font-bold text-[10px]">{{error_messages[2].message}}</span>
+    </div>
+
+    <label class="relative block text-[14px]" [ngClass]="{'mt-3': error_messages[1].display, 'py-3': !error_messages[1].display}">
+      <span class="sr-only">password</span>
+      <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+        <img src="../../assets/icon/lock.svg" alt="">
+      </span>
+      <input id="passwordLogin" class="block w-full rounded border border-[#00396542] bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] raleway-500 focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Mot de passe" type="password" name="password" [(ngModel)]="password"/>
+       <span (click)="showPassword()" class="absolute inset-y-0 right-0 flex items-center pr-4 text-[#879EA4]">
+        <img src="../../assets/icon/eye.svg" alt="">
+      </span>
+    </label>
+    <div *ngIf="error_messages[1].display" class="flex flex-col">
+      <span class="text-red-600 font-bold text-[10px]">{{error_messages[1].message}}</span>
+    </div>
+    <div class="mx-1 flex items-center my-4">
+      <input class="h-5 w-5" type="checkbox" name="" id="" />
+      <label class="px-2 text-[12px] raleway-700 text-[#02263D]">Me connecter automatiquement</label>
+    </div>
+
+    <div class="flex items-center py-2">
+      <button (click)="login()" class="h-11 w-full rounded-xl bg-[#1D4999] active:bg-[#193d81] text-[14px] montserrat-700 tracking-wide text-white">Se connecter</button>
+    </div>
+    <div class="py-2 text-center">
+      <a routerLink="/password-forgotten" class="px-2 text-[12px] raleway-700 text-[#02263D]"><u>Mot de passe oublié ?</u></a>
+    </div>
+  </div>
+  <!-- end inputs -->
+
+  <!-- ou separation -->
+  <div class="flex items-center justify-center py-5">
+    <div class="w-[33vw] border"></div>
+    <label class="font-semibold px-4 text-[14px] text-[#879EA4] font-[Montserrat]">OU</label>
+    <div class="w-[33vw] border"></div>
+  </div>
+  <!-- end separation -->
+
+  <!-- register -->
+  <div class="flex flex-col items-center py-5">
+    <label class="px-2 text-[#02263D] text-[12px] raleway-600">Vous n'avez pas de compte ?</label>
+    <ion-button color="to-transparent" style=" text-transform: none;" (click)="regester()" class="h-11 w-full rounded-xl bg-[#1d489920] active:bg-[#1d48993d] border-2 border-[#1D4999] text-[14px] montserrat-700 tracking-wide text-[#1D4999] my-6">S'inscrire</ion-button>
+  </div>
+  <!-- end register -->
+</div>

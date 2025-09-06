@@ -1,0 +1,106 @@
+<div class="absolute top-0 left-0 right-0 bottom-0 flex justify-center items-center">
+  <div
+    (click)="close()"
+    class="absolute top-0 flex h-[100vh] w-full items-center justify-center bg-[#0005] z-10"
+  ></div>
+  <div
+    class="items-center justify-center z-30 flex w-[80vw] flex-col bg-white px-7 py-10 rounded"
+  >
+    <div class="px-4 text-center font-[Montserrat] text-[18px] leading-6">
+      Créer une
+      <span class="text-[#EB2F06] font-bold">affluence</span>
+      <div class="text-center font-[Montserrat] text-[13px] leading-6">
+        Annuler ou Varier une intensité
+      </div>
+    </div>
+    <div class="mb-1 mt-4 flex justify-center ">
+      <div
+        (click)="selectChoice(1)"
+        [ngClass]="{
+          'border-[#EB2F06] animate-fade': choice === 1,
+          'border-[#00000032]': choice !== 1
+        }"
+        class="h-[13vh] flex flex-col items-center justify-center rounded border-2 px-1 py-5 w-[120px] mr-2"
+      >
+        <div>
+          <img class="mb-3" src="../../../assets/icon/redUser.svg" alt="" />
+        </div>
+        <span class="text-[12px]">1 à 5 clients</span>
+      </div>
+      <div
+        (click)="selectChoice(2)"
+        [ngClass]="{
+          'border-[#EB2F06] animate-fade': choice === 2,
+          'border-[#00000032]': choice !== 2
+        }"
+        class="h-[13vh] flex flex-col items-center justify-center rounded border-2 px-1 py-5 w-[120px]"
+      >
+        <div>
+          <img class="mb-3" src="../../../assets/icon/twoRedUsers.svg" alt="" />
+        </div>
+        <span class="text-[12px]">6 à 20 clients</span>
+      </div>
+    </div>
+
+    <div class="my-1 flex justify-center">
+      <div
+        (click)="selectChoice(3)"
+        [ngClass]="{
+          'border-[#EB2F06] animate-fade': choice === 3,
+          'border-[#00000032]': choice !== 3
+        }"
+        class="h-[13vh] flex flex-col items-center justify-center rounded border-2 px-1 py-5 w-[120px] mr-2"
+      >
+        <div>
+          <img class="mb-3" src="../../../assets/icon/threeUser.svg" alt="" />
+        </div>
+        <span class="text-[12px]">21 à 100 clients</span>
+      </div>
+      <div
+        (click)="selectChoice(4)"
+        [ngClass]="{
+          'border-[#EB2F06] animate-fade': choice === 4,
+          'border-[#00000032]': choice !== 4
+        }"
+        class="h-[13vh] flex flex-col items-center justify-center rounded border-2 px-1 py-5 w-[120px]"
+      >
+        <div>
+          <img class="mb-1" src="../../../assets/icon/fourUser.svg" alt="" />
+        </div>
+        <span class="text-[12px]">+ 100 clients</span>
+      </div>
+    </div>
+
+    <div class="my-1 flex justify-center">
+      <div
+        (click)="selectChoice(0)"
+        [ngClass]="{
+          'border-[#EB2F06] animate-fade': choice === 0,
+          'border-[#00000032]': choice !== 0
+        }"
+        class="h-[13vh] flex flex-col items-center justify-center rounded border-2 px-1 py-5 w-[120px] mr-2"
+      >
+        <div>
+          <img class="mb-3" src="../../../assets/icon/darkUser.svg" alt="" />
+        </div>
+        <span class="text-[12px]">pas de clients</span>
+      </div>
+    </div>
+
+    <div class="mt-2 flex justify-center">
+      <ion-button
+        (click)="close()"
+        style="--background:transparent; --background-activated:#3332 ;text-transform: none;"
+        class="h-[40px] w-full rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]"
+        >Annuler</ion-button
+      >
+      <ion-button
+        (click)="valider()"
+        [disabled]="choice === null"
+        style="--background:#1D4999;--background-activated:#173d84; text-transform: none;"
+        class="mr-1 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white"
+        >Valider</ion-button
+      >
+    </div>
+  </div>
+</div>

@@ -1,0 +1,34 @@
+<!-- pub -->
+<div class="w-full">
+  <div class="h-[13vh] w-full" style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%"></div>
+  <div class="w-full h-[87vh] bg-[#F3F4F7] px-6 overflow-auto">
+    <!-- end pub -->
+    <!-- head -->
+    <div class="flex w-full py-5">
+      <div (click)="goMap()" class="pt-1.5">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-5 w-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+        </svg>
+      </div>
+      <div class="px-4 text-[15pt] font-bold leading-6">Suggestions et avis</div>
+    </div>
+    <!-- end head -->
+
+  <div class="w-full">
+    <div class="mb-1">
+      <label class=" montserrat-700 ">Suggestions et avis</label>
+      <div class="mt-4">
+        <div class="text-[12px] pb-2 montserrat-600" style="line-height: normal;">Vos avis sont importants<br/> pourl’amélioration du service. Vous pouveznous les faires parvenir ci dessous : <span class="text-red-600">*</span></div>
+        <label class="relative pb-2 text-[13px]">
+          <textarea class="w-full h-[200px] rounded border border-[#00396542] bg-white px-3 py-2 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="écrire.." type="text" name="content" [(ngModel)]="content"></textarea>
+        </label>
+        <div class="flex flex-col">
+          <span  *ngIf="error_messages.display" class="text-red-600 font-bold text-[10px]">{{error_messages.content}}</span>
+        </div>
+      </div>
+    </div>
+    <div class="pb-5">
+      <ion-button (click)="sendMail()" style="text-transform: none;" color="transparent" class="h-[40px] w-full rounded-xl border-2 bg-[#1D4999] active:bg-transparent border-[#1D4999] text-[13px] montaserrat-700 tracking-wide text-white active:text-[#1D4999] mr-2">Envoyer</ion-button>
+    </div>
+  </div>
+</div>

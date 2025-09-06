@@ -1,0 +1,29 @@
+ion-list {
+    padding: 10px;
+    background-color: #f9f9f9;
+    border-radius: 10px;
+  }
+  
+  ion-item {
+    --background: transparent;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  ion-label {
+    font-size: 14px;
+    font-weight: bold;
+    color: #444;
+  }
+  
+  ion-input {
+    font-size: 14px;
+  }
+  
+  ion-button {
+    margin-top: 15px;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+  

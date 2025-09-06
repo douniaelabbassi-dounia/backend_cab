@@ -1,0 +1,187 @@
+/* Custom Leaflet CSS without problematic image references */
+.leaflet-container {
+    height: 400px;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    position: relative;
+    outline: 0;
+}
+
+.leaflet-map-pane {
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+
+.leaflet-tile {
+    filter: inherit;
+    visibility: visible;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.leaflet-tile-loaded {
+    opacity: 1;
+}
+
+.leaflet-zoom-box {
+    width: 0;
+    height: 0;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    z-index: 800;
+}
+
+.leaflet-control {
+    position: relative;
+    z-index: 800;
+    pointer-events: visiblePainted;
+    pointer-events: auto;
+}
+
+.leaflet-control-zoom {
+    -webkit-border-radius: 4px;
+    border-radius: 4px;
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+    background-color: #fff;
+    border: 2px solid rgba(0,0,0,0.2);
+    width: 30px;
+    height: 30px;
+    text-align: center;
+    text-decoration: none;
+    color: black;
+    display: block;
+    font-size: 18px;
+    line-height: 26px;
+}
+
+.leaflet-control-zoom-in {
+    -webkit-border-radius: 4px 4px 0 0;
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+}
+
+.leaflet-control-zoom-out {
+    -webkit-border-radius: 0 0 4px 4px;
+    border-radius: 0 0 4px 4px;
+}
+
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+    background-color: #f4f4f4;
+}
+
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+    display: block;
+}
+
+.leaflet-container .leaflet-marker-pane img,
+.leaflet-container .leaflet-shadow-pane img,
+.leaflet-container .leaflet-tile-pane img,
+.leaflet-container img.leaflet-image-layer {
+    max-width: none !important;
+    max-height: none !important;
+    width: auto;
+    padding: 0;
+    margin: 0;
+}
+
+.leaflet-popup {
+    position: absolute;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.leaflet-popup-content-wrapper {
+    padding: 1px;
+    text-align: left;
+    border-radius: 12px;
+    background: white;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+}
+
+.leaflet-popup-content {
+    margin: 13px 19px;
+    line-height: 1.4;
+}
+
+.leaflet-popup-tip-container {
+    width: 40px;
+    height: 20px;
+    position: absolute;
+    left: 50%;
+    margin-left: -20px;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.leaflet-popup-tip {
+    width: 17px;
+    height: 17px;
+    padding: 1px;
+    margin: -10px auto 0;
+    -webkit-transform: rotate(45deg);
+    -moz-transform: rotate(45deg);
+    -ms-transform: rotate(45deg);
+    transform: rotate(45deg);
+    background: white;
+    box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+}
+
+.leaflet-container a.leaflet-popup-close-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 4px 4px 0 0;
+    border: none;
+    text-align: center;
+    width: 18px;
+    height: 14px;
+    font: 16px/14px Tahoma, Verdana, sans-serif;
+    color: #c3c3c3;
+    text-decoration: none;
+    font-weight: bold;
+    background: transparent;
+}
+
+.leaflet-container a.leaflet-popup-close-button:hover {
+    color: #999;
+}
+
+/* Remove problematic control layer styles */
+.leaflet-control-layers {
+    box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+    background: #fff;
+    border-radius: 5px;
+}
+
+.leaflet-control-layers-list {
+    margin: 0;
+    padding: 0;
+}
+
+.leaflet-control-layers-base {
+    margin-bottom: 5px;
+}
+
+.leaflet-control-layers-separator {
+    height: 1px;
+    background: #ddd;
+    margin: 5px -10px 5px -6px;
+}
+
+/* Basic marker styles without images */
+.leaflet-default-marker {
+    background-color: #38f;
+    border-radius: 50%;
+    width: 12px;
+    height: 12px;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}

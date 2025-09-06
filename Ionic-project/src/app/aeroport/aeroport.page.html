@@ -1,0 +1,88 @@
+<!-- airport-list.page.html -->
+<ion-header class="ion-no-border">
+  <ion-toolbar class="bg-white shadow-sm">
+    <div class="flex items-center px-4 h-16">
+      <ion-buttons slot="start">
+        <ion-button (click)="goBack()" class="p-2 hover:bg-gray-100 rounded-full mr-3">
+          <ion-icon name="chevron-back-outline" class="h-5 w-5 text-gray-600"></ion-icon>
+        </ion-button>
+      </ion-buttons>
+      <ion-title class="text-lg font-semibold text-gray-900">Aéroports</ion-title>
+    </div>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="bg-gray-50">
+  <div class="max-w-3xl mx-auto px-4 pb-8">
+    <ion-list class="bg-transparent" [inset]="true">
+      <ion-item *ngFor="let aeroport of aeroports" lines="none" class="bg-white rounded-xl shadow-sm overflow-hidden mb-6 transition-all hover:shadow-md ion-no-padding">
+        <!-- Airport Code Banner -->
+        <div class="w-full">
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50 py-14" (click)="openDetailsNew(aeroport)">
+            <h2 class="text-4xl font-bold text-center text-gray-900 hover:text-blue-600 transition-colors cursor-pointer">
+              {{ aeroport.abbreviation }}
+            </h2>
+          </div>
+
+          <div class="p-6">
+            <!-- Airport Name -->
+            <h3 class="text-lg font-medium text-gray-900 mb-6 pb-2 border-b">{{ aeroport.name }}</h3>
+
+            <!-- Details Grid -->
+            <div class="space-y-4">
+              <!-- File Number (For airports other than ORLY) -->
+              <div *ngIf="aeroport.abbreviation !== 'ORLY'" class="flex items-center justify-between">
+                <span class="text-gray-600">Nb file:</span>
+                <div class="flex items-center space-x-2">
+                  <span class="font-medium">{{ aeroport.nbFile }}</span>
+                </div>
+              </div>
+              
+              <!-- Orly-specific Queue Fields -->
+              <div *ngIf="aeroport.abbreviation === 'ORLY'">
+                <div class="flex items-center justify-between">
+                  <span class="text-gray-600">Grande file:</span>
+                  <div class="flex items-center space-x-2">
+                    <span class="font-medium">{{ aeroport.nbGrandeFile }}</span>
+                  </div>
+                </div>
+                <div class="flex items-center justify-between mt-2">
+                  <span class="text-gray-600">Petite file:</span>
+                  <div class="flex items-center space-x-2">
+                    <span class="font-medium">{{ aeroport.nbPetiteFile }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Van Number -->
+              <div class="flex items-center justify-between">
+                <span class="text-gray-600">Nb de Van:</span>
+                <div class="flex items-center space-x-2">
+                  <span class="font-medium">{{ aeroport.nbVan }}</span>
+                </div>
+              </div>
+
+              <!-- Attente BAT -->
+              <div class="flex items-center justify-between">
+                <span class="text-gray-600">Attente Bat:</span>
+                <div class="flex items-center space-x-2">
+                  <span class="font-medium">{{ aeroport.attenteBAT }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Modify Button -->
+            <ion-button 
+              expand="block"
+              fill="outline"
+              (click)="openModal(aeroport)"
+              class="h-10 mt-6 font-medium"
+              color="primary">
+              Modifier
+            </ion-button>
+          </div>
+        </div>
+      </ion-item>
+    </ion-list>
+  </div>
+</ion-content>

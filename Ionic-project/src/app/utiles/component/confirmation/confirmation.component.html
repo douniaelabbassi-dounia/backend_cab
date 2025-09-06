@@ -1,0 +1,13 @@
+<div class="absolute flex justify-center items-center top-0 left-0 right-0 bottom-0">
+  <div (click)="close()" class="absolute top-0 h-[100vh] w-full bg-[#0005] "></div>
+  <div class=" flex w-[80vw] flex-col rounded bg-white px-7 py-8 z-30 relative">
+    <div class="px-4 text-center font-[Montserrat] text-[18px] leading-6">Confermation</div>
+    <div class="mb-1 mt-4">
+     <p class="text-[12px] text-center my-4">Do you really want to unfollow <b>Ayman Fadli</b> ?</p>
+    </div>
+    <div class="mt-2 flex justify-between">
+      <ion-button (click)="close()" data style="--background:transparent; --background-activated:#3332; text-transform: none;" class="h-[40px] w-full rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]">Annuler</ion-button>
+      <ion-button (click)="deleteFriendMethod()" style="--background:#1D4999;--background-activated:#173d84; text-transform: none;" class="mr-1 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">Confirmer</ion-button>
+    </div>
+  </div>
+</div>

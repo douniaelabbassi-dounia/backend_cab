@@ -1,0 +1,66 @@
+<div class="h-[100vh] w-full" style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat;  background-size: cover; background-position:55% 100%">
+  <!-- head -->
+  <div class="flex h-[30vh] w-full py-5 p-6 bg-gradient-to-b from-white via-[#ffffffbc] to-[#fff0]">
+    <div class="w-[200px] py-6 text-[15pt] font-bold leading-6">PUB</div>
+  </div>
+  <!-- end head -->
+
+    <!-- buttons -->
+  <div class="absolute w-full h-5/12 bg-gradient-to-t from-white via-[#ffffffbc] to-[#fff0] flex items-end bottom-0 text-[12px] font-[Montserrat] font-bold">
+    
+    <div class="flex flex-col justify-end w-full h-[25vh] p-4 text-white">
+      <!-- ignore pub -->
+      <div class=" w-full h-[20vh] flex justify-end items-center my-8">
+        <div *ngIf="conteurPub > 0" class="bg-[#0000009a] px-7 py-2">
+          <span >{{conteurPub}} secondes</span>
+        </div>
+        <div *ngIf="conteurPub == 0" (click)="redirectPub()" class="bg-[#0000009a] px-7 py-2">
+          <span >ignorer l’annonce</span>
+        </div>
+      </div>
+      <!-- ignore pub -->
+
+      <div class="flex justify-around">
+        <div *ngIf="displayer.autreDisplay" class="bg-[#6A89CC] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+          <span class="px-2 ">
+            <img src="../../assets/icon/station.svg" class="pr-1 w-6 h-6" alt="">
+          </span><label class="text-[13px]"> Station</label>
+        </div>
+        <div *ngIf="!displayer.autreDisplay" class="w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+          <span class="px-2 ">
+          </span>
+        </div>
+        <!-- GPS -->
+        <div class=" w-[42vw] h-[45px] flex justify-end px-1" style="visibility: hidden;">
+          <div class="w-[45px] h-[45px] text-black bg-white flex justify-center items-center rounded-full drop-shadow-md border  ">
+            <img src="../../assets/icon/gps.svg" class="w-7 h-7" alt="">
+
+          </div>
+        </div>
+        <!-- end GPS -->
+      </div>
+      <div class="flex justify-around">
+        <div  class="bg-purple-500 w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+          <span class="px-1">
+            <img src="../../assets/icon/tickette.svg" class="pr-1 w-6 h-6" alt="">
+          </span>
+          <label  class="text-[13px]">Évènement</label>
+        </div>
+        <div (click)="displayer.autreDisplay = !displayer.autreDisplay" class="bg-[#1ABCFE] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg"><span></span><label class="text-[13px]">Autre</label></div>
+      </div>
+      <div class="flex justify-around">
+        <div  class="bg-[#EB2F06] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+          <span class="px-1">
+            <img src="../../assets/icon/groupPub.svg" class="pr-1 w-6 h-6" alt="">
+          </span> <label class="text-[13px]">Affluence</label>
+        </div>
+        <div class="bg-[#1D4999] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg">
+          <span class="px-1">
+            <img src="../../assets/icon/note.svg" class="pr-1 w-4 h-4" alt="">
+          </span>Note
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- end buttons -->
+</div>

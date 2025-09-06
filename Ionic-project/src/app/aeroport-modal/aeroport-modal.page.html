@@ -1,0 +1,124 @@
+<div class="min-h-screen bg-gray-50 p-4">
+  <!-- Header -->
+  <div class="bg-white shadow-sm rounded-t-lg p-4">
+    <div class="flex items-center justify-between">
+      <h1 class="text-xl font-semibold text-gray-900">Modifier Aéroport</h1>
+      <button 
+        (click)="closeModal()"
+        class="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
+      >
+        Fermer
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Form -->
+  <div class="bg-white shadow-sm rounded-b-lg p-6 space-y-6">
+    <!-- Airport Name -->
+    <div class="space-y-2">
+      <label class="block text-sm font-medium text-gray-700">
+        Nom d'aéroport
+      </label>
+      <input
+        type="text"
+        [value]="aeroport.name"
+        readonly
+        class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+    </div>
+
+    <!-- Abbreviation -->
+    <div class="space-y-2">
+      <label class="block text-sm font-medium text-gray-700">
+        Abréviation
+      </label>
+      <input
+        type="text"
+        [value]="aeroport.abbreviation"
+        readonly
+        class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+    </div>
+
+    <!-- File Number (For airports other than ORLY) -->
+    <div *ngIf="aeroport.abbreviation !== 'ORLY'" class="space-y-2">
+      <label class="block text-sm font-medium text-gray-700">
+        Nb file
+      </label>
+      <input
+        type="text"
+        [(ngModel)]="aeroport.nbFile"
+        class="w-full px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+    </div>
+
+    <!-- Orly-specific Fields -->
+    <div *ngIf="aeroport.abbreviation === 'ORLY'">
+      <div class="space-y-2">
+        <label class="block text-sm font-medium text-gray-700">
+          Nb de grande file
+        </label>
+        <input
+          type="text"
+          [(ngModel)]="aeroport.nbGrandeFile"
+          class="w-full px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+      </div>
+      <div class="space-y-2 mt-6">
+        <label class="block text-sm font-medium text-gray-700">
+          Nb de petite file
+        </label>
+        <input
+          type="text"
+          [(ngModel)]="aeroport.nbPetiteFile"
+          class="w-full px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+      </div>
+    </div>
+
+    <!-- Van Number -->
+    <div class="space-y-2">
+      <label class="block text-sm font-medium text-gray-700">
+        Nb de Van
+      </label>
+      <input
+        type="number"
+        [(ngModel)]="aeroport.nbVan"
+        class="w-full px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+    </div>
+
+    <!-- BAT Wait Time -->
+    <div class="space-y-2">
+      <label class="block text-sm font-medium text-gray-700">
+        Attente BAT
+      </label>
+      <div class="flex items-center space-x-4">
+        <div class="flex items-center">
+          <input
+            type="number"
+            [(ngModel)]="aeroport.attenteBAT.split('h')[0]"
+            class="w-20 px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+          <span class="ml-2 text-gray-600">H</span>
+        </div>
+        <div class="flex items-center">
+          <input
+            type="number"
+            [(ngModel)]="aeroport.attenteBAT.split(' ')[1]"
+            class="w-20 px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+          <span class="ml-2 text-gray-600">Min</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Save Button -->
+    <button
+      (click)="saveChanges()"
+      class="w-full mt-6 px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+    >
+      Enregistrer
+    </button>
+  </div>
+</div>

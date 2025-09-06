@@ -1,0 +1,120 @@
+<div>
+  <!-- En-tête -->
+  <div class="w-full h-[13vh] bg-cover bg-center" style="background-image:url(../../assets/images/Rectangle_39873.png);"></div>
+
+  <!-- Contenu principal -->
+  <div class="h-[89vh] w-full bg-[#F3F4F7] px-6 overflow-auto">
+    <!-- En-tête de la page -->
+    <div class="flex w-full py-5">
+      <div (click)="close()" class="pt-1.5">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.6"
+          stroke="currentColor"
+          class="h-5 w-5"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+          />
+        </svg>
+      </div>
+      <div class="px-4 text-[15pt] font-bold leading-6">Modifier une note</div>
+    </div>
+    <!-- Fin de l'en-tête -->
+
+    <!-- Formulaire -->
+    <div class="w-full">
+      <!-- Champ "Adresse" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700">Adresse</label>
+        <label class="relative block text-[13px]">
+          <span class="sr-only text-[#02263D]">Adresse</span>
+          <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+            <img src="../../../assets/icon/gpsInput.svg" alt="">
+          </span>
+
+          <!-- ----------------- For openSteetMap ----------------- -->
+          <!-- (keyup)="onAddressInput()" -->
+          <!-- (focus)="focusInput = true" -->
+          <!-- (blur)="blurInput()" -->
+          <!-- ----------------- For openSteetMap ----------------- -->
+
+          <input  class="block w-full rounded border border-[#00396542] bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="ex : Tour eiffel,.." type="text" [(ngModel)]="lieu" (keyup)="onAddressInput()" (focus)="focusInput = true" (blur)="blurInput()"/>
+        </label>
+        <!-- ----------------- For openSteetMap (autocomplete) ----------------- -->
+        <div *ngIf="suggestions.length > 0 && focusInput" class="absolute left-12 bg-white border border-[#00396542] w-2/3 max-h-[40vh] overflow-x-auto z-10">
+          <ul>
+            <li *ngFor="let suggestion of suggestions" (click)="onSelectAddress(suggestion)" class="p-1 text-[11px] border-b-1 border">{{suggestion.display_name}}</li>
+          </ul>
+        </div>
+        <!-- ----------------- For openSteetMap (autocomplete) ----------------- -->
+
+      </div>
+
+      <!-- Champ "Jour" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Jour</label>
+        <div class="flex flex-wrap w-full items-center">
+          <div *ngFor="let item of dayList" class="flex h-[25px] w-[60px] my-1 items-center rounded-full px-2 py-0.5 mr-1" [ngClass]="{'bg-[#1D4999] text-white':item.activated , 'bg-[#E6EAEC] text-[#02263D]': !item.activated}">
+            <input (change)="selectDay(item, $event)" type="checkbox" name="days"/>
+            <span class="break-normal px-1 text-[11px]">{{item.name}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Champ "Heure" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Heure</label>
+        <input (click)="toggaleModal('time-begin')" readonly [value]="heureDebut" class="block w-full rounded border border-[#00396542] bg-white px-3 py-2 shadow-sm" placeholder="19:00"/>
+        <app-time-picker *ngIf="displayModal.displayTimeBegin" (closeDateTime)="toggaleModal('time-begin')" (valueChange)="setValue($event, 'timeBegin')"></app-time-picker>
+      </div>
+
+      <!-- Champ "Type" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Type</label>
+        <input [(ngModel)]="Type" name="Type" required class="block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm" placeholder="Ex: Entreprise, hôtel, particulier..."/>
+      </div>
+
+      <!-- Champ "Destination" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Destination</label>
+        <input [(ngModel)]="destination" name="destination" required class="block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm" placeholder="Ex: Paris"/>
+      
+        <div class="relative flex h-[30px] w-full flex-row items-center overflow-y-hidden px-1">
+          <div class="flex">
+            <div class="text-[#1D4999]] mr-1 flex h-[25px] w-[120px] items-center rounded-full px-2 py-0.5" [ngClass]="{'bg-[#E6EAEC] ': friendsSelector != tous.value, 'bg-[#1D4999] text-white':  friendsSelector == tous.value}">
+              <input  type="radio" name="type" value="all" class="h-4 w-4" #tous (change)="selectSelectorFiends(tous.value)" />
+              <span class="px-1 text-[11px]">Tous les amis</span>
+            </div>
+
+            <div class="flex h-[25px] w-[100px] items-center rounded-full px-2 py-0.5 text-white" [ngClass]="{'bg-[#E6EAEC] ': friendsSelector != perso.value, 'bg-[#1D4999] text-white':  friendsSelector == perso.value}">
+              <input checked type="radio" name="type" value="personne" class="h-4 w-4" #perso (change)="selectSelectorFiends(perso.value)" />
+              <span class="px-1 text-[11px]">Personne</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Champ "Commentaire" -->
+      <div class="mb-4">
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Commentaire</label>
+        <textarea [(ngModel)]="commentaire" name="commentaire" class="block w-full rounded border border-[#00396542] bg-white px-3 py-2 shadow-sm" placeholder="Écrire..." type="text"></textarea>
+      </div>
+
+      <!-- Boutons -->
+      <div class="mt-4 flex flex-col gap-2">
+        <button (click)="close()" class="h-[40px] rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]">
+          Annuler
+        </button>
+        <button (click)="updatePoint()" class="h-[40px] rounded-xl border-2 border-[#1D4999] bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">
+          Valider
+        </button>
+      </div>
+    </div>
+    <!-- Fin du formulaire -->
+  </div>
+</div>

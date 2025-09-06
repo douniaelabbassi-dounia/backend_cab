@@ -1,0 +1,29 @@
+<div class="h-[13vh] w-full" style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%"></div>
+
+<div class="h-[100vh] w-full overflow-auto bg-[#F3F4F7] px-6">
+  <!-- head -->
+  <div class="flex w-full py-5">
+    <div (click)="goTo('map')" class="pt-1.5">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-5 w-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </div>
+    <div class="px-4 text-[15pt] font-bold leading-6">aide et FAQ</div>
+  </div>
+  <!-- end head -->
+
+  <span class="montserrat-600 text-[18px]">Foire aux questions :</span>
+  
+  <!-- content -->
+  <div class="w-full">
+    <app-accordion *ngFor="let faq of listFaq" [content]="faq" ></app-accordion>
+  </div>
+  <!-- end content -->
+  
+  <div class="py-5">
+    <span class="text-[13px]">Si vous n’avez pas trouvé de réponse</span>
+    <ion-button (click)="goTo('aide')" color="transparent" style="--border-radius:0.75rem; text-transform: none;" class="montserrat-700 my-1 h-10 w-full rounded-xl border-2 border-[#1D4999] text-[13px] tracking-wide text-[#1D4999]">Aide</ion-button>
+  </div>
+
+
+</div>

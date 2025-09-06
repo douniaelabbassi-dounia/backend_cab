@@ -1,0 +1,78 @@
+<div class="h-[13vh] w-full" style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%"></div>
+
+<div class="h-[100vh] w-full overflow-auto bg-[#F3F4F7] px-6">
+  <!-- head -->
+  <div class="flex w-full py-5">
+    <div (click)="goTo('map')" class="pt-1.5">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-5 w-5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+      </svg>
+    </div>
+    <div class="px-4 text-[15pt] font-bold leading-6">Confirmation</div>
+  </div>
+  <!-- end head -->
+  <span class="montserrat-500 text-[12px]">Détails</span>
+  <!-- inputs -->
+  <div class="my-4">
+    <div>
+      <label class="montserrat-600 text-[13px]">Adresse <span class="text-red-600">*</span></label>
+      <label class="relative block text-[13px]">
+        <span class="sr-only">Adresse</span>
+        <input class="raleway-500 block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Adresse" type="text" name="username" />
+      </label>
+    </div>
+
+    <div class="mt-2">
+      <label class="montserrat-600 text-[13px]">Pays <span class="text-red-600">*</span></label>
+      <label class="relative block text-[13px]">
+        <span class="sr-only">Pays</span>
+        <input class="raleway-500 block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Pays" type="text" name="username" />
+      </label>
+    </div>
+
+    <div class="mt-2">
+      <label class="montserrat-600 text-[13px]">Ville <span class="text-red-600">*</span></label>
+      <label class="relative block text-[13px]">
+        <span class="sr-only">Ville</span>
+        <input class="raleway-500 block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Ville" type="text" name="username" />
+      </label>
+    </div>
+
+    <div class="mt-2">
+      <label class="montserrat-600 text-[13px]">Code postale <span class="text-red-600">*</span></label>
+      <label class="relative block text-[13px]">
+        <span class="sr-only">Code postale</span>
+        <input class="raleway-500 block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Code postale" type="text" name="username" />
+      </label>
+    </div>
+
+    <div class="mt-2">
+      <label class="montserrat-600 text-[13px]">Code de réduction <span class="text-red-600">*</span></label>
+      <label class="relative block text-[13px]">
+        <span class="sr-only">Code de réduction</span>
+        <input class="raleway-500 block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Saisir le code de réduction" type="text" name="username" />
+      </label>
+    </div>
+
+    <div class="mt-5">
+      <label class="montserrat-500 text-[11px]">Choisir votre mode de paiement</label>
+      <div class="montserrat-700 flex h-11 items-center justify-between rounded border-2 border-[#1D4999] bg-white text-[13px] tracking-wide text-[#1D4999]">
+        <div class="flex items-center px-2">
+          <img src="../../assets/icon/creditCard.svg" class="mr-2 w-5 h-5" alt="" />
+          <span>Carte de credit</span>
+        </div>
+
+        <div class="flex items-center px-5">
+          <ion-radio checked name="paiment" class="h-4 w-4"></ion-radio>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-col items-center py-5">
+      <ion-button (click)="goTo('thanks')" color="transparent" style="--border-radius:0.75rem; text-transform: none;" class="montserrat-600 my-1 h-9 w-full rounded-xl bg-[#1D4999] text-[13px] tracking-wide text-white">Terminer</ion-button>
+
+      <ion-button (click)="goTo('back')" color="transparent" style="--border-radius:0.75rem; text-transform: none;" class="montserrat-700 my-1 h-9 w-full rounded-xl border-2 border-[#1D4999] text-[13px] tracking-wide text-[#1D4999]">Précedent</ion-button>
+    </div>
+  </div>
+  <!-- end inputs -->
+</div>

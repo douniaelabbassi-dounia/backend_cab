@@ -1,0 +1,126 @@
+<div>
+  <!-- En-tête avec image -->
+  <div
+    class="w-full h-[13vh]"
+    style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%"
+  ></div>
+
+  <!-- Contenu principal -->
+  <div class="h-[89vh] w-full bg-[#F3F4F7] px-6 overflow-auto">
+    <!-- En-tête de la page -->
+    <div class="flex w-full py-5">
+      <div (click)="close()" class="pt-1.5">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke-width="1.6"
+          stroke="currentColor"
+          class="h-5 w-5"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+          />
+        </svg>
+      </div>
+      <div class="px-4 text-[15pt] font-bold leading-6">Événement N° {{ pointId }}</div>
+    </div>
+    <!-- Fin de l'en-tête -->
+
+    <!-- Formulaire -->
+    <div class="w-full">
+      <!-- Champ "Lieu" -->
+      <div>
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Lieu</label>
+        <input
+          [(ngModel)]="lieu"
+          class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+          placeholder="Exemple : SDF, Opéra Garnier, ..."
+        />
+      </div>
+
+      <!-- Champ "Type" -->
+      <div>
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Type</label>
+        <input
+          [(ngModel)]="type"
+          class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+          placeholder="Exemple : Théâtre, Soirée"
+        />
+      </div>
+
+      <!-- Champ "Date" -->
+      <div>
+        <label class="text-[12px] montserrat-700 text-[#02263D]">Date</label>
+        <input
+          (click)="toggaleModal('date')"
+          [value]="date || 'Non définie'"
+          readonly
+          class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+        />
+        <app-datetime-picker
+          *ngIf="displayModal.displayDate"
+          [multiDate]="true"
+          (closeDateTime)="toggaleModal('date')"
+          (valueChange)="setValue($event, 'date')"
+        ></app-datetime-picker>
+      </div>
+
+      <!-- Heures Début et Fin -->
+      <div class="flex">
+        <!-- Heure Début -->
+        <div class="pr-2">
+          <label class="text-[12px] montserrat-700 text-[#02263D]">Heure Début</label>
+          <input
+            (click)="toggaleModal('time-begin')"
+            [value]="heureDebut"
+            readonly
+            class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+          />
+          <app-time-picker
+            *ngIf="displayModal.displayTimeBegin"
+            (closeDateTime)="toggaleModal('time-begin')"
+            (valueChange)="setValue($event, 'timeBegin')"
+          ></app-time-picker>
+        </div>
+
+        <!-- Heure Fin -->
+        <div>
+          <label class="text-[12px] montserrat-700 text-[#02263D]">Heure Fin</label>
+          <input
+            (click)="toggaleModal('time-end')"
+            [value]="heureFin"
+            readonly
+            class="block w-full rounded border border-[#00396542] bg-white py-2 pl-3 pr-3 shadow-sm"
+          />
+          <app-time-picker
+            *ngIf="displayModal.displayTimeEnd"
+            (closeDateTime)="toggaleModal('time-end')"
+            (valueChange)="setValue($event, 'timeEnd')"
+          ></app-time-picker>
+        </div>
+      </div>
+
+      <!-- Boutons -->
+      <div class="mt-4 flex justify-between">
+        <ion-button
+          (click)="close()"
+          style="--background:transparent; --background-activated:#3332; text-transform: none;"
+          class="h-[40px] w-full rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]"
+        >
+          Annuler
+        </ion-button>
+        <ion-button
+          (click)="updatePoint()"
+          style="--background:#1D4999;--background-activated:#173d84; text-transform: none;"
+          class="mr-1 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white"
+        >
+          Valider
+        </ion-button>
+      </div>
+    </div>
+    <!-- Fin du formulaire -->
+  </div>
+</div>

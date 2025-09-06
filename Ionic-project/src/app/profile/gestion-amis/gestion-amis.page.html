@@ -1,0 +1,85 @@
+<!-- pub -->
+<div class="w-full">
+  <div class="h-[13vh] w-full" style="background-image:url(../../assets/images/Rectangle_39873.png); background-repeat:no-repeat; background-size:cover;background-position:100%"></div>
+  <div class="w-full h-[87vh] bg-[#F3F4F7] px-6 overflow-auto">
+    <!-- end pub -->
+    <!-- head -->
+    <div class="flex w-full py-5">
+      <div (click)="back()" class="pt-1.5">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-5 w-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+        </svg>
+      </div>
+      <div class="px-4 text-[15pt] font-bold leading-6">Amis</div>
+    </div>
+    <!-- end head -->
+
+    <!-- info -->
+    <div class="w-full">
+
+      <div class="mb-1">
+        <label class=" montserrat-700 ">Ajouter un ami</label>
+        <div class="mt-4">
+          <label class="text-[13px] montserrat-600 text-[#02263D]">Adresse email ou pseudo : <span class="text-red-600">*</span></label>
+          <label class="relative block text-[13px]">
+            <span class="sr-only">Adresse email ou pseudo</span>
+            <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+              <img src="../../assets/icon/email.svg" class="pr-1" alt="">
+            </span>
+            <input class="raleway-500 block w-full rounded border border-[#00396542] bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="Email ou pseudo" type="text" name="emailOrPseudo" [(ngModel)]="emailOrPseudo"/>
+          </label>
+          <div class="flex flex-col">
+            <span  *ngIf="error_messages[0].display" class="text-red-600 font-bold text-[10px]">{{error_messages[0].message}}</span>
+            <span *ngIf="error_messages[1].display" class="text-red-600 font-bold text-[10px]">{{error_messages[1].message}}</span>
+          </div>
+        </div>
+      </div>
+      <div class="pb-5">
+        <ion-button (click)="inviteUser()" style="text-transform: none;" color="transparent" class="h-[40px] w-full rounded-xl border-2 bg-[#1D4999] active:bg-transparent border-[#1D4999] text-[13px] montaserrat-700 tracking-wide text-white active:text-[#1D4999] mr-2">Envoyer</ion-button>
+      </div>
+      
+      <hr />
+
+      <div class="flex justify-between items-center my-4">
+        <div>
+          <label *ngIf="!shareNotesWith" class="text-[14px]">{{friendsList.length}} amis</label>
+          <div *ngIf="shareNotesWith" class="flex items-center">
+            <input (click)="selectAll($event)" type="checkbox" name="selectAll" value="all" class="w-4 h-4"><label class="px-2 text-[10px]">Tou(te)s les amis</label>
+          </div>
+        </div>
+        <ion-button (click)="shareNotesWithFn()" style="text-transform: none;" color="transparent" class="h-[35px] rounded-xl border-2 border-[#1D4999] text-[10px] montaserrat-700 tracking-wide  mr-2" [ngClass]="{'text-[#1D4999]':!shareNotesWith, 'text-white bg-[#1D4999]':shareNotesWith}">Partager mes memos</ion-button>
+      </div>
+
+      <!-- amis -->
+        <div>
+          <table class="w-full border-separate border-spacing-y-3">
+      
+              <tr *ngFor="let amis of friendsList; let i = index">
+                <td *ngIf="shareNotesWith" class="pr-5">
+                  <input (click)="selectedFriends(amis.id,$event)" [id]="'relation-' + amis.id" [checked]="0" type="checkbox" class="w-4 h-4">
+                </td>
+                <td>
+                  <div class=" w-[50px] h-[50px] rounded-full overflow-hidden flex items-center">
+                    <img [src]="amis?.user?.image?.url? URL + 'storage/' + amis?.user?.image?.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" alt="">
+                  </div>
+                </td>
+                <td class=" px-2 w-full">
+                  <span class="text-[13px] montserrat-700 w-full">{{amis.user.firstName}} {{amis.user.lastName}}</span>
+                </td>
+                <td *ngIf="!shareNotesWith">
+                  <div class="flex items-center ">
+                    <span (click)="action('stop-sharing-notes', amis.id)"class="w-[35px] h-[35px] bg-[#DEE3EE] flex items-center justify-center rounded-full mx-[3px]" *ngIf="amis.share_note != 0"><img src="../../assets/icon/sentNote.svg" alt="" class="w-3.5"></span>
+                    <span (click)="action('share-notes', amis.id)"class="w-[35px] h-[35px] bg-[#1D4999] flex items-center justify-center rounded-full mx-[3px]" *ngIf="amis.share_note == 0"><img src="../../assets/icon/note.svg" alt="" class="w-3.5"></span>
+                    <span (click)="action('delete-friend', amis.id)" class="w-[35px] h-[35px] bg-[#F2E1E0] flex items-center justify-center rounded-full mx-[3px]"><img src="../../assets/icon/redtrush.svg" alt="" class="w-3.5"></span>
+                  </div>
+                </td>
+              </tr>   
+
+          </table>
+        </div>
+      <!-- end amis -->
+    <!-- end info -->
+  </div>
+</div>
+
+<app-confirmation *ngIf="confirmation" (closeConfirmation)="taggleModal()" (deleteFriend)="unfollowFiend()"></app-confirmation>

@@ -1,0 +1,16 @@
+<div class="absolute flex justify-center items-center top-0 left-0 right-0 bottom-0">
+  <div (click)="close()" class="absolute top-0 h-[100vh] w-full bg-[#0005] "></div>
+  <div class=" mx-1  w-[80vw] rounded bg-white px-7 py-6 z-30 ">
+    <div class="mb-1 mt-4">
+      <p class="text-[12px] text-center my-4">Télécharger un Fichier</p>
+     </div>
+    <div class="flex justify-between mb-4">
+      <div (click)="choiceMethod('takePic')" class="w-1/2 h-20 px-4 border-dotted border-2 border-gray-300 rounded-xl flex justify-center items-center">
+        <ion-icon name="camera" size="large" color="medium"></ion-icon>
+      </div>
+      <div (click)="choiceMethod('getPic')" class="mx-1 w-1/2 h-20 px-4 border-dotted border-2 border-gray-300 rounded-xl flex justify-center items-center">
+        <ion-icon name="images" size="large" color="medium"></ion-icon>
+      </div>
+    </div>
+  </div>
+</div>

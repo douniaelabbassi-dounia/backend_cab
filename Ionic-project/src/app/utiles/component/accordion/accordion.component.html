@@ -1,0 +1,10 @@
+<div (click)="accordionToggle($event.target)" class="bg-white my-2 p-4 border-[0.89px] border-[#D2DBEB] mb-4">
+  <div size="10" class=" flex justify-between">
+    <span class="text-[13px] montserrat-700">{{content.title}}</span>
+    <img *ngIf="isOpened" src="../../assets/icon/arrowUp.svg" class="px-2" alt="">
+    <img *ngIf="!isOpened" src="../../assets/icon/arrowDown.svg" class="px-2" alt="">
+  </div>
+  <div class="text-[13px] montserrat-600 mt-4 overflow-hidden" [ngClass]="{'hidden':!isOpened}">
+    {{content.message}}
+  </div>
+</div>

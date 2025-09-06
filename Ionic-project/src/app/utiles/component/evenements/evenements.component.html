@@ -1,0 +1,87 @@
+<div class="absolute flex justify-center items-center top-0 left-0 right-0 bottom-0">
+  <div (click)="close()" class="absolute top-0 z-10 h-[100vh] w-full bg-[#0005]"></div>
+  <div class=" w-[80vw] flex-col rounded bg-white px-7 py-10 z-10">
+    <div class="px-4 text-center font-[Montserrat] text-[18px] leading-6">
+      Créer un <span class="font-bold text-[#A259FF]">évenement</span>
+      <!-- <div class="text-center font-[Montserrat] text-[13px] leading-6">Annulez ou Variez une intensité</div> -->
+    </div>
+    <div class="mb-1 mt-4">
+      <div>
+        <label class="text-[12px] montserrat-700 text-[#02263D] ">Lieu</label>
+        <label class="relative block pb-1 text-[13px]">
+          <span class="sr-only">Lieu</span>
+          <span class="absolute inset-y-0 left-0 flex items-center pl-2.5 text-[#879EA4]">
+            <img src="../../../assets/icon/gpsInput.svg" alt="">
+          </span>
+          <!-- openStreetMap attributes -->
+          <!-- (keyup)="onAddressInput()" (focus)="focusInput = true" (blur)="blurInput()" -->
+          <!-- openStreetMap attributes -->
+
+          <input id="pac-input-event" class="block w-full rounded border border-[#00396542]
+           bg-white py-2 pl-9 pr-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm"
+           placeholder="ex : SDF, Opéra garnier,.." type="text" [(ngModel)]="error_message[0].input" (keyup)="onAddressInput()" (focus)="focusInput = true" />
+        </label>
+        <div class="flex flex-col">
+          <span  *ngIf="error_message[0].display" class="text-red-600 font-bold text-[10px]">{{error_message[0].message}}</span>
+        </div>
+         <!-- openStreetMap autocomplete -->
+        <div *ngIf="suggestions.length > 0 && focusInput" class="absolute  bg-white border border-[#00396542] w-2/3 max-h-[40vh] overflow-x-auto z-10">
+          <ul>
+            <li *ngFor="let suggestion of suggestions" (click)="onSelectAddress(suggestion)" class="p-1 text-[11px] border-b-1 border">{{suggestion.display_name}}</li>
+          </ul>
+        </div>
+         <!-- openStreetMap autocomplete -->
+      </div>
+
+      <div>
+        <label class="text-[12px] montserrat-700 text-[#02263D] ">Type</label>
+        <label class="relative block pb-1 text-[13px]">
+          <span class="sr-only">Type</span>
+          <input class="block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="ex : théatre, soirée" type="text" [(ngModel)]="type" />
+        </label>
+      </div>
+
+      <div>
+        <label class="text-[12px] montserrat-700 text-[#02263D] ">Date</label>
+        <label class="relative block pb-1 text-[13px]">
+          <span class="sr-only">Date</span>
+          <input (click)="toggaleModal('date')" [value]="this.error_message[1].input" readonly class="block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="10/01/2024 - 22/01/2024" type="text" />
+        </label>
+        <app-datetime-picker *ngIf="displayModal.displayDate" [multiDate]="true" (closeDateTime)="toggaleModal('date')" (valueChange)="setValue($event, 'date')"></app-datetime-picker>
+        <div class="flex flex-col">
+          <span  *ngIf="error_message[1].display" class="text-red-600 font-bold text-[10px]">{{error_message[1].message}}</span>
+        </div>
+      </div>
+
+      <div class="flex">
+        <div class="pr-2">
+          <label class="text-[12px] montserrat-700 text-[#02263D] ">Heure début</label>
+          <label class="relative block py-b 1ext-[13px]">
+            <span class="sr-only">Heure début</span>
+            <input (click)="toggaleModal('time-begin')" readonly [value]="this.error_message[2].input" class="block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="11:25" type="text" />
+          </label>
+          <app-time-picker *ngIf="displayModal.displayTimeBegin" (closeDateTime)="toggaleModal('time-begin')" (valueChange)="setValue($event, 'timeBegin')"></app-time-picker>
+          <div class="flex flex-col">
+            <span  *ngIf="error_message[2].display" class="text-red-600 font-bold text-[10px]">{{error_message[2].message}}</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[12px] montserrat-700 text-[#02263D] ">Heure Fin</label>
+          <label class="relative block py-b 1ext-[13px]">
+            <span class="sr-only">Heure Fin</span>
+            <input (click)="toggaleModal('time-end')" readonly [value]="this.error_message[3].input" class="block w-full rounded border border-[#00396542] bg-white py-2 px-3 shadow-sm placeholder:text-[#879EA4] focus:border-[#112A59] focus:outline-none focus:ring-1 focus:ring-[#112A59] sm:text-sm" placeholder="11:25" type="text" />
+          </label>
+          <app-time-picker *ngIf="displayModal.displayTimeEnd" (closeDateTime)="toggaleModal('time-end')" (valueChange)="setValue($event, 'timeEnd')"></app-time-picker>
+          <!-- <div class="flex flex-col">
+            <span  *ngIf="error_message[3].display" class="text-red-600 font-bold text-[10px]">{{error_message[3].message}}</span>
+          </div> -->
+        </div>
+      </div>
+    </div>
+    <div class="mt-2 flex justify-between">
+      <ion-button (click)="close()" style="--background:transparent; --background-activated:#3332; text-transform: none;" class="h-[40px] w-full rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]">Annuler</ion-button>
+      <ion-button (click)="validation()" style="--background:#1D4999;--background-activated:#173d84; text-transform: none;" class="mr-1 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">Valider</ion-button>
+    </div>
+  </div>
+</div>

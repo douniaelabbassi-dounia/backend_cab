@@ -1,0 +1,13 @@
+<div class="absolute flex justify-center items-center top-0 left-0 right-0 bottom-0">
+  <div (click)="close()" class="absolute top-0 h-[100vh] w-full bg-[#0005] "></div>
+  <div class=" flex w-[80vw] flex-col rounded bg-white px-7 py-8 z-30 relative">
+    <div class="px-4 text-center font-[Montserrat] text-[18px] leading-6">Confirmation</div>
+    <div class="mb-1 mt-4">
+     <p class="text-[12px] text-center my-4">{{content}}</p>
+    </div>
+    <div class="mt-2 flex justify-between">
+      <ion-button (click)="close()" data style="--background:transparent; --background-activated:#3332; text-transform: none;" class="h-[40px] w-full rounded-xl border-2 border-[#1D4999] bg-transparent text-[13px] font-bold tracking-wide text-[#1D4999]">Annuler</ion-button>
+      <ion-button (click)="deleteItemMethod()" style="--background:#EB2F06;--background-activated:#EB2F06; text-transform: none;" class="mr-1 h-[40px] w-full border-2 border-[#EB2F06] rounded-xl bg-[#EB2F06] text-[13px] font-semibold tracking-wide text-white">Confirmer</ion-button>
+    </div>
+  </div>
+</div>

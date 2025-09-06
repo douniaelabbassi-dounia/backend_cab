@@ -1,0 +1,18 @@
+High Priority: Core Functionality & Bug Fixes
+[✓] Fix Airport Page Data Loading: The page now loads data, navigation is fixed, and Orly-specific fields are displayed correctly.
+[✓] Fix Disappearing Points on Navigation: Markers now correctly persist and reload when navigating back to the map page.
+[✓] Implement Correct Marker Popups (Info Windows): Popups for Event, SOS, and Note markers now display the correct detailed information.
+[ ] Implement Time-Based Visibility for Event Points (In Progress):
+Note: Backend logic is implemented but is incorrectly filtering active events. The Carbon::createFromFormat function is still failing with the current data format. This needs to be revisited.
+[ ] Implement Time-Based Fading for Affluence Points: Affluence markers must gradually fade and then disappear based on their level and duration.
+Medium Priority: Feature Enhancements & UI Improvements
+[ ] Implement Map Marker Filtering: Allow users to filter markers by category via a long press on the main screen buttons.
+[✓] Correct Affluence & SOS Marker Icons: The SOS marker now appears with the correct yellow icon immediately upon creation. (Affluence icons are pending).
+[ ] Implement "List Notes" Feature: Create a functional list view for all user-created notes, accessible from the menu.
+[ ] Implement Station Queue (Polyline) Drawing: Allow users to draw the path of a station queue, and ensure the UI is clean (small dots, finish button).
+[ ] Differentiate User-Created vs. Other Popups: Show "Edit/Delete" options on popups for the creator and "Like/Dislike" for other users.
+Low Priority: Refinements & Future Features
+[ ] Implement Time-Based Visibility for Note Points: Notes should appear 15 minutes before and disappear 15 minutes after their scheduled time.
+[✓] Update Orly Airport Fields: This was completed as part of the airport page fix.
+[ ] Implement Dynamic Queue Visualization (Advanced): Show a real-time green line over the gray polyline path based on other users' positions.
+[ ] Refresh Event List After Creation: A newly created event should immediately appear in the list-evenement page without needing a manual refresh.

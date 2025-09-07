@@ -1,0 +1,45 @@
+name: Deploy Firebase (Hosting + Functions)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'functions/**'
+      - 'Ionic-project/www/**'
+      - 'firebase.json'
+      - '.firebaserc'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools@latest
+
+      - name: Build Functions
+        run: |
+          cd functions
+          npm ci || npm install
+          npm run build
+
+      - name: Build Ionic (Hosting)
+        run: |
+          cd Ionic-project
+          npm ci || npm install
+          npm run build
+
+      - name: Deploy
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          firebase use cabsul-c7efd --token "$FIREBASE_TOKEN"
+          firebase deploy --only functions:api,hosting --token "$FIREBASE_TOKEN"

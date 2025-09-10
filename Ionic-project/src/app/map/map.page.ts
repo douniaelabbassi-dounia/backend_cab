@@ -2,7 +2,8 @@ import { Component, OnInit, OnDestroy, ElementRef, ViewChild } from '@angular/co
 import axios from 'axios';
 import * as L from 'leaflet';
 
-import { NavController, Platform, ModalController } from '@ionic/angular';
+import { NavController, Platform } from '@ionic/angular';
+import { Capacitor } from '@capacitor/core';
 import { presentToast } from '../utiles/component/notification';
 import { ProfilService } from '../utiles/services/profil/profil.service';
 import { ListPointsService } from '../utiles/services/points/list-points.service';
@@ -96,6 +97,19 @@ export class MapPage implements OnInit, OnDestroy {
   private editingLatLngs: L.LatLng[][] = [];
   private editVertexMarkers: L.Marker[] = [];
   private wasWatchingLocation: boolean = false;
+  // Track if we've already centered to user's location once per page entry
+  private hasCenteredOnUser: boolean = false;
+  // Follow user mode: keep map view centered as position updates
+  private followUser: boolean = true;
+  private lastUserLatLng: L.LatLng | null = null;
+  private lastPanTs: number = 0;
+  private readonly followPanMinDistanceMeters: number = 8; // ignore micro-jitters
+  private readonly followPanThrottleMs: number = 750; // limit panning frequency
+  private hasPromptedForGps: boolean = false;
+  private gpsPromptPending: boolean = false;
+  private permissionState: 'granted' | 'denied' | 'prompt' | 'unknown' = 'unknown';
+  private isGpsPermissionPromptOpen: boolean = false;
+  showGpsModal: boolean = false;
 
   // list of all object of all points type
   oldPosition: { lat: number; lon: number } = {
@@ -259,6 +273,8 @@ export class MapPage implements OnInit, OnDestroy {
       if (this.authenticatedUser) {
         this.checkTrialPeriod();
       }
+      // Always refresh points when entering the map to reflect recent edits (e.g., SOS updates)
+      try { this.getAllPoint(); } catch {}
     } catch (error) {
       console.error("An error occurred in ionViewWillEnter:", error);
     }
@@ -276,7 +292,92 @@ export class MapPage implements OnInit, OnDestroy {
   // }
 
   ionViewDidEnter() {
+    // Reset centering flag each time view enters
+    this.hasCenteredOnUser = false;
     this.initializeMap();
+  }
+
+  private async checkGpsPermissionFlow() {
+    // Do not show modal while ad/onboarding overlay is active or big ad not skipped yet
+    const skipPub = localStorage.getItem('skipPub');
+    if (this.displayer.showPub || skipPub !== '1' || this.skipedPub !== '1') {
+      this.gpsPromptPending = true;
+      return;
+    }
+    if (this.hasPromptedForGps) {
+      // Avoid re-prompting repeatedly; resume tracking if permission was granted.
+      try { await this.locateCurrentPosition(); } catch {}
+      this.showGpsModal = false;
+      return;
+    }
+    try {
+      await this.updatePermissionState();
+      if (this.permissionState === 'granted') {
+        this.showGpsModal = false;
+        try { await this.locateCurrentPosition(); } catch {}
+        return;
+      }
+      // If we have a recent stored fix, don't show modal
+      const lat = localStorage.getItem('lat');
+      const lng = localStorage.getItem('long');
+      if (lat && lng) {
+        this.showGpsModal = false;
+        try { await this.locateCurrentPosition(); } catch {}
+        return;
+      }
+      // Probe one-shot location before showing modal
+      const fix = await this.getOneShotLocation();
+      if (fix) {
+        try {
+          localStorage.setItem('lat', String(fix.lat));
+          localStorage.setItem('long', String(fix.lng));
+        } catch {}
+        this.showGpsModal = false;
+        try { await this.locateCurrentPosition(); } catch {}
+      } else {
+        if (!this.isGpsPermissionPromptOpen) {
+          this.showGpsModal = true;
+        }
+      }
+    } catch (e) {
+      console.warn('GPS permission check failed, showing modal as fallback', e);
+      if (!this.isGpsPermissionPromptOpen) this.showGpsModal = true;
+    }
+  }
+
+  onGpsEnableClick() {
+    this.hasPromptedForGps = true;
+    this.isGpsPermissionPromptOpen = true;
+    try { this.locateCurrentPosition(); } catch {}
+    try { this.openDeviceLocationSettings(); } catch {}
+  }
+
+  onGpsLaterClick() {
+    this.showGpsModal = false;
+  }
+
+  private async openDeviceLocationSettings() {
+    try {
+      const diag = (window as any).cordova?.plugins?.diagnostic;
+      if (diag && typeof diag.switchToLocationSettings === 'function') {
+        diag.switchToLocationSettings();
+        return;
+      }
+    } catch {}
+    try {
+      const settings = (window as any).cordova?.plugins?.settings;
+      if (settings && typeof settings.open === 'function') {
+        // cordova-open-native-settings plugin
+        settings.open('location', () => {}, () => {});
+        return;
+      }
+    } catch {}
+    const platform = Capacitor.getPlatform();
+    if (platform === 'ios') {
+      try { window.open('app-settings:'); return; } catch {}
+    }
+    // Fallback: try to trigger the OS prompt or show instructions
+    try { await this.locateCurrentPosition(); } catch {}
   }
 
   async initializeMap(): Promise<void> {
@@ -325,6 +426,8 @@ export class MapPage implements OnInit, OnDestroy {
             this.getAllPoint();
             // After initial render, force markers layout without zoom gesture
             setTimeout(() => this.ensureMarkersVisible(), 200);
+            // Only after map is shown, check GPS permission and possibly show modal (no extra delay)
+            setTimeout(() => this.checkGpsPermissionFlow(), 100);
           }, 300);
         });
 
@@ -332,6 +435,12 @@ export class MapPage implements OnInit, OnDestroy {
 
         this.map.on('contextmenu', (e: L.LeafletMouseEvent) => this.onMapHold(e));
         this.map.on('click', (e: L.LeafletMouseEvent) => this.onMapClick(e));
+        // Disable follow mode if the user manually drags the map
+        this.map.on('dragstart', () => {
+          if (this.followUser) {
+            this.followUser = false;
+          }
+        });
         
         // Add mobile-friendly long press detection
         let pressTimer: any;
@@ -531,8 +640,35 @@ export class MapPage implements OnInit, OnDestroy {
         this.heldMarker = null;
       }
       this.markergray = false;
+      this.selectedPosi = undefined;
       console.log('Gray marker removed on tap');
     }
+  }
+
+  private initPermissionWatcher() {
+    try {
+      const hasApi = 'permissions' in navigator && (navigator as any).permissions?.query;
+      if (!hasApi) return;
+      (navigator as any).permissions.query({ name: 'geolocation' as PermissionName }).then((status: any) => {
+        const apply = (st: any) => {
+          this.permissionState = (st || 'unknown');
+          if (this.permissionState === 'granted') {
+            this.showGpsModal = false;
+          }
+        };
+        try { apply(status?.state); } catch {}
+        try { status.onchange = () => apply((status as any).state); } catch {}
+      }).catch(() => {});
+    } catch {}
+  }
+
+  private async updatePermissionState() {
+    try {
+      const hasApi = 'permissions' in navigator && (navigator as any).permissions?.query;
+      if (!hasApi) { this.permissionState = 'unknown'; return; }
+      const status: any = await (navigator as any).permissions.query({ name: 'geolocation' as PermissionName });
+      this.permissionState = (status?.state as any) || 'unknown';
+    } catch { this.permissionState = 'unknown'; }
   }
 
   // Helper function to create Mapbox markers
@@ -721,6 +857,11 @@ export class MapPage implements OnInit, OnDestroy {
     this.skipedPub = localStorage.getItem('skipPub');
     setTimeout(() => {
       // this.autocomplete();
+      // If GPS prompt was deferred until ad skip, run the flow now
+      if (this.gpsPromptPending) {
+        this.gpsPromptPending = false;
+        setTimeout(() => this.checkGpsPermissionFlow(), 100);
+      }
     }, 1000);
   }
 
@@ -818,35 +959,6 @@ export class MapPage implements OnInit, OnDestroy {
   private setMarkersOpacity() {
     const hasSelectedCategory = Object.values(this.selectedBtn).some(selected => selected);
 
-    // If no filter is active, restore all markers to full opacity
-    if (!hasSelectedCategory) {
-      const markerCategories = [
-        { markers: this.objectpurpleMarkers, category: 'event' },
-        { markers: this.objectredMarkers, category: 'affluence' },
-        { markers: this.objectgreenMarkers, category: 'station' },
-        { markers: this.objectblueMarkers, category: 'note' },
-        { markers: this.objectjauneMarkers, category: 'sos' }
-      ];
-
-      // Show all markers from all categories
-      markerCategories.forEach(({ markers }) => {
-        markers.forEach(markerObj => {
-          if (markerObj.object) {
-            const el = markerObj.object.getElement();
-            if (el) {
-              // For affluence markers, only restore if they're not in a fading state
-              const isAffluenceMarker = this.objectredMarkers.includes(markerObj);
-              if (!isAffluenceMarker || !markerObj.isFading) {
-                el.style.opacity = '1';
-              }
-              el.style.pointerEvents = 'auto';
-            }
-          }
-        });
-      });
-      return;
-    }
-
     const markerCategories = [
       { markers: this.objectpurpleMarkers, category: 'event' },
       { markers: this.objectredMarkers, category: 'affluence' },
@@ -855,58 +967,105 @@ export class MapPage implements OnInit, OnDestroy {
       { markers: this.objectjauneMarkers, category: 'sos' }
     ];
 
-    // First, hide all markers
-    this.allMarkers.forEach(marker => {
-      const el = marker.getElement();
-      if (el) {
-        el.style.opacity = '0';
-        el.style.pointerEvents = 'none';
+    if (!hasSelectedCategory) {
+      // Restore all markers to visible state; affluence keeps its fade
+      markerCategories.forEach(({ markers, category }) => {
+        markers.forEach(markerObj => {
+          const el = markerObj.object?.getElement();
+          if (!el) return;
+          if (category === 'affluence') {
+            // Do not alter opacity; timers manage it
+            el.style.pointerEvents = 'auto';
+          } else {
+            el.style.opacity = '1';
+            el.style.pointerEvents = 'auto';
+          }
+        });
+      });
+      return;
+    }
+
+    // Exactly one button is made active by handlingLongClick; enforce visibility accordingly
+    markerCategories.forEach(({ markers, category }) => {
+      const isSelected = !!this.selectedBtn[category];
+      markers.forEach(markerObj => {
+        const el = markerObj.object?.getElement();
+        if (!el) return;
+        if (isSelected) {
+          if (category === 'affluence') {
+            // Keep current fade; ensure it's interactable and compute immediate opacity for smooth reveal
+            const opacity = this.getAffluenceCurrentOpacity(markerObj);
+            if (!isNaN(opacity)) el.style.opacity = opacity.toString();
+            el.style.pointerEvents = 'auto';
+          } else {
+            el.style.opacity = '1';
+            el.style.pointerEvents = 'auto';
+          }
+        } else {
+          // Hide non-selected categories completely
+          el.style.opacity = '0';
+          el.style.pointerEvents = 'none';
+        }
+      });
+    });
+  }
+
+  // One-shot GPS fix via Leaflet locate. Resolves with null if unavailable.
+  private async getOneShotLocation(): Promise<{ lat: number, lng: number } | null> {
+    const map = this.map;
+    if (!map) return null;
+    return new Promise((resolve) => {
+      let settled = false;
+      const cleanup = (onFound: any, onErr: any, timer: any) => {
+        try { map.off('locationfound', onFound); } catch {}
+        try { map.off('locationerror', onErr); } catch {}
+        if (timer) clearTimeout(timer);
+      };
+      const onFound = (e: L.LocationEvent) => {
+        if (settled) return;
+        settled = true;
+        cleanup(onFound, onErr, timeoutId);
+        resolve({ lat: e.latlng.lat, lng: e.latlng.lng });
+      };
+      const onErr = (_e: L.ErrorEvent) => {
+        if (settled) return;
+        settled = true;
+        cleanup(onFound, onErr, timeoutId);
+        resolve(null);
+      };
+      const timeoutId = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup(onFound, onErr, timeoutId);
+        resolve(null);
+      }, 9000);
+
+      try {
+        map.on('locationfound', onFound);
+        map.on('locationerror', onErr);
+        map.locate({ setView: false, enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+      } catch {
+        resolve(null);
       }
     });
+  }
 
-    // Then, only show markers for the selected category
-    markerCategories.forEach(({ markers, category }) => {
-      const isSelected = this.selectedBtn[category];
-      markers.forEach(markerObj => {
-        if (markerObj.object) {
-          const el = markerObj.object.getElement();
-          if (el) {
-            if (isSelected) {
-              // Show only markers of the selected category
-              el.style.opacity = '1';
-              el.style.pointerEvents = 'auto';
-            }
-          }
-        }
-      });
-      markers.forEach(markerObj => {
-        if (markerObj.object) {
-          const el = markerObj.object.getElement();
-          if (el) {
-            // --- THIS IS THE NEW LOGIC ---
-            if (category === 'affluence') {
-              // For affluence markers, we ONLY adjust pointer events.
-              // Their opacity is EXCLUSIVELY managed by their personal fading timers.
-              if (isSelected) {
-                el.style.pointerEvents = 'auto'; // Make it clickable if selected
-              } else {
-                el.style.pointerEvents = 'none'; // Make it non-clickable if filtered out
-              }
-              // We DO NOT change el.style.opacity here for affluence markers.
-            } else {
-              // For all OTHER marker types, we adjust both opacity and pointer events.
-              if (isSelected) {
-                el.style.opacity = '1';
-                el.style.pointerEvents = 'auto';
-              } else {
-                el.style.opacity = '0.2';
-                el.style.pointerEvents = 'none';
-              }
-            }
-          }
-        }
-      });
-    });
+  // Compute current expected opacity for an affluence marker based on its duration and creation time
+  private getAffluenceCurrentOpacity(pointData: any): number {
+    try {
+      const total = this.getAffluenceDurationMs(pointData.level);
+      const created = this.parseAffluenceCreationDate(pointData).getTime();
+      const now = Date.now();
+      const remaining = Math.max(0, total - (now - created));
+      return Math.max(0, Math.min(1, remaining / total));
+    } catch {
+      return 1; // fallback to visible
+    }
+  }
+
+  // Expose a computed flag for template to dim non-selected buttons
+  get anyFilterActive(): boolean {
+    return Object.values(this.selectedBtn).some(Boolean);
   }
 
 
@@ -941,6 +1100,10 @@ export class MapPage implements OnInit, OnDestroy {
         // Ensure periodic check for event visibility
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
+        try { this.refreshSosPopups(); } catch {}
+
+        // Update popup content for SOS popups to reflect latest data
+        try { this.refreshSosPopups(); } catch {}
 
         // --- START: New logic to open popup for newly created point ---
         if (this.newPointId) {
@@ -951,6 +1114,15 @@ export class MapPage implements OnInit, OnDestroy {
                 }, 100);
             }
             this.newPointId = null; // Reset the ID after use
+        }
+        // Open updated SOS popup automatically if returning from edit
+        const updatedSosIdStr = localStorage.getItem('justUpdatedSosId');
+        if (updatedSosIdStr) {
+          const updatedSosId = parseInt(updatedSosIdStr, 10);
+          if (!isNaN(updatedSosId)) {
+            setTimeout(() => this.openSosPopupById(updatedSosId), 150);
+          }
+          try { localStorage.removeItem('justUpdatedSosId'); } catch {}
         }
         // --- END: New logic ---
 
@@ -1205,7 +1377,7 @@ getIndexMarker(type: string, object: any): number {
     this.addPointRes = false;
   }
 
-  addMarker(type: string, choice: any): void {
+  async addMarker(type: string, choice: any): Promise<void> {
     if (this.authService.$userinfo !== null) {
       let currentMarker: any = null;
 
@@ -1219,27 +1391,30 @@ getIndexMarker(type: string, object: any): number {
             this.authService.$userinfo.id,
             this.authService.$userinfo.role.role_name
           );
-          if (this.selectedPosi?.lat != undefined && this.selectedPosi?.lng != undefined) {
-            this.selectedPoint = {
-              option: true,
-              position: {
-                lat: this.selectedPosi.lat,
-                lng: this.selectedPosi.lng,
-              },
-            };
+          // Resolve position in priority: held gray marker -> stored GPS -> one-shot GPS fix
+          let resolvedLatLng: { lat: number, lng: number } | null = null;
+          if (this.markergray && this.selectedPosi?.lat !== undefined && this.selectedPosi?.lng !== undefined) {
+            resolvedLatLng = { lat: this.selectedPosi.lat, lng: this.selectedPosi.lng };
           } else {
-            let userLat = localStorage.getItem('lat');
-            let userLng = localStorage.getItem('long');
-            if (userLat != undefined && userLng != undefined) {
-              this.selectedPoint = {
-                option: true,
-                position: {
-                  lat: parseFloat(userLat),
-                  lng: parseFloat(userLng),
-                },
-              };
+            const userLat = parseFloat(localStorage.getItem('lat') || '');
+            const userLng = parseFloat(localStorage.getItem('long') || '');
+            if (!isNaN(userLat) && !isNaN(userLng)) {
+              resolvedLatLng = { lat: userLat, lng: userLng };
+            } else {
+              // Attempt a one-shot GPS fix
+              resolvedLatLng = await this.getOneShotLocation();
             }
           }
+
+          if (!resolvedLatLng) { return; }
+
+          this.selectedPoint = {
+            option: true,
+            position: {
+              lat: resolvedLatLng.lat,
+              lng: resolvedLatLng.lng,
+            },
+          };
           let newMarkerR = this.createLeafletMarker(
             iconUrl,
             [this.selectedPoint.position.lat, this.selectedPoint.position.lng]
@@ -1248,6 +1423,7 @@ getIndexMarker(type: string, object: any): number {
             this.heldMarker.remove();
             this.heldMarker = null;
             this.markergray = false;
+            this.selectedPosi = undefined;
           }
           let objectR = {
             id: undefined, name: 'point rouge', address: '----',
@@ -1303,6 +1479,7 @@ getIndexMarker(type: string, object: any): number {
               this.heldMarker.remove();
               this.heldMarker = null;
               this.markergray = false;
+              this.selectedPosi = undefined;
             }
             let dateInii = new Date();
             let objectJaune = {
@@ -1334,6 +1511,7 @@ getIndexMarker(type: string, object: any): number {
           this.heldMarker.remove();
           this.heldMarker = null;
           this.markergray = false;
+          this.selectedPosi = undefined;
           this.displayer.statusDisplay = false;
           let dateIni = new Date();
           let formattedDate = dateIni.getFullYear() + '-' + (dateIni.getMonth() + 1).toString().padStart(2, '0') + '-' + dateIni.getDate().toString().padStart(2, '0');
@@ -1461,18 +1639,15 @@ getIndexMarker(type: string, object: any): number {
 
 
   async myLocation() {
-    if (!this.map) {
-      presentToast('Map is not initialized', 'bottom', 'danger');
-      return;
-    }
+    if (!this.map) { return; }
 
     this.map.locate({ 
       watch: true, 
-      setView: false, 
+      setView: false, // we control centering manually on first fix
       maxZoom: 16, 
       enableHighAccuracy: true,
       timeout: 30000,        // 30 seconds timeout instead of default 10s
-      maximumAge: 300000     // 5 minutes cache for position
+      maximumAge: 0          // use freshest position for real-time tracking
     });
 
     const onLocationFound = (e: L.LocationEvent) => {
@@ -1483,11 +1658,44 @@ getIndexMarker(type: string, object: any): number {
       localStorage.setItem('long', longitude.toString());
 
       this.addMarker('location', { position: { lat: latitude, long: longitude } });
+      this.isGpsPermissionPromptOpen = false;
+      this.showGpsModal = false;
+      const current = L.latLng(latitude, longitude);
+
+      // Center the map to the user's location on initial fix, then follow if enabled
+      if (!this.hasCenteredOnUser) {
+        try {
+          this.map?.flyTo([latitude, longitude], 17);
+      // bounds check omitted silently
+        } catch (err) {
+          console.warn('Failed to center on initial user location', err);
+        }
+        this.hasCenteredOnUser = true;
+        this.lastPanTs = Date.now();
+        this.lastUserLatLng = current;
+      } else if (this.followUser) {
+        try {
+          const now = Date.now();
+          const since = now - this.lastPanTs;
+          // Throttle and avoid tiny pans
+          if (since >= this.followPanThrottleMs && (!this.lastUserLatLng || current.distanceTo(this.lastUserLatLng) >= this.followPanMinDistanceMeters)) {
+            // Keep zoom as-is; smooth pan
+            this.map?.panTo(current, { animate: true, duration: 0.5 } as any);
+            this.lastPanTs = now;
+            this.lastUserLatLng = current;
+          }
+        } catch (err) {
+          console.warn('Failed to pan while following user', err);
+        }
+      }
     }
 
     const onLocationError = (e: L.ErrorEvent) => {
-      console.error('Location error:', e.message);
-      presentToast('Erreur de localisation', 'bottom', 'danger');
+      console.warn('Location error:', e.message);
+      try { this.updatePermissionState(); } catch {}
+      if (this.permissionState !== 'granted' && !this.isGpsPermissionPromptOpen) {
+        this.showGpsModal = true;
+      }
     }
 
     this.map.on('locationfound', onLocationFound);
@@ -1499,28 +1707,24 @@ getIndexMarker(type: string, object: any): number {
       this.map?.locate({
         enableHighAccuracy: true,
         timeout: 30000,        // 30 seconds timeout
-        maximumAge: 300000     // 5 minutes cache
+        maximumAge: 0          // always request fresh position
       });
     }, 30000); // 30 secondes au lieu de 10
+    // Continuous tracking: do not auto-stop after 5 minutes
+  }
 
-    // Arrêter les mises à jour après 5 minutes
-    this.positionTimeout = setTimeout(() => {
-      this.map?.stopLocate();
-      this.map?.off('locationfound', onLocationFound);
-      this.map?.off('locationerror', onLocationError);
-      clearInterval(this.positionUpdateInterval);
-      console.log("Mise à jour arrêtée après 5 minutes.");
-      presentToast('Localisation désactivée après 5 minutes', 'bottom', 'danger');
-    }, 300000); // 300000 ms = 5 minutes
+  // Optional: expose a method to toggle follow mode (can be wired to a UI control if needed)
+  toggleFollowUser() {
+    this.followUser = !this.followUser;
   }
 
   async locateCurrentPosition() {
-    if (!this.map) {
-      presentToast('Map is not initialized', 'bottom', 'danger');
-      return;
-    }
+    if (!this.map) { return; }
 
-    presentToast('Localisation en cours...', 'bottom', 'primary');
+    // Re-enable follow mode when user taps the GPS button
+    this.followUser = true;
+    // Allow a fresh re-center on this manual request
+    this.hasCenteredOnUser = false;
 
     const onLocationFound = (e: L.LocationEvent) => {
       const { lat: latitude, lng: longitude } = e.latlng;
@@ -1533,23 +1737,26 @@ getIndexMarker(type: string, object: any): number {
       this.map?.flyTo([latitude, longitude], 17);
 
       // 2. THEN, if the location is outside France, show a warning toast.
-      if (!this.franceBounds.contains([latitude, longitude] as any)) {
-        presentToast("Votre position est en dehors de la France.", 'bottom', 'warning');
-      }
+      // bounds check omitted silently
       // --- END OF FIX ---
       
       // Update the user's marker on the map.
       this.addMarker('location', { position: { lat: latitude, long: longitude } });
-      presentToast('Position mise à jour', 'bottom', 'success');
+      this.showGpsModal = false;
 
       // Clean up the one-time event listeners.
       this.map?.off('locationfound', onLocationFound);
       this.map?.off('locationerror', onLocationError);
+      this.isGpsPermissionPromptOpen = false;
     };
 
     const onLocationError = (e: L.ErrorEvent) => {
-      console.error('Manual location error:', e.message);
-      presentToast('Erreur de localisation. Vérifiez vos paramètres GPS.', 'bottom', 'danger');
+      console.warn('Manual location error:', e.message);
+      // Only show overlay if permission isn't granted and we aren't already showing system prompt
+      try { this.updatePermissionState(); } catch {}
+      if (this.permissionState !== 'granted' && !this.isGpsPermissionPromptOpen) {
+        this.showGpsModal = true;
+      }
       
       // Fallback to stored coordinates if GPS fails.
       const lat = localStorage.getItem('lat');
@@ -1560,11 +1767,8 @@ getIndexMarker(type: string, object: any): number {
         if (!isNaN(latitude) && !isNaN(longitude)) {
           // Also apply the new logic here: always fly, then check bounds.
           this.map.flyTo([latitude, longitude], 17);
-          if (!this.franceBounds.contains([latitude, longitude] as any)) {
-             presentToast("Votre dernière position est en dehors de la France.", 'bottom', 'warning');
-          }
+          // bounds check omitted silently
           this.addMarker('location', { position: { lat: latitude, long: longitude } });
-          presentToast('Position précédente utilisée', 'bottom', 'warning');
         }
       }
       
@@ -2466,16 +2670,31 @@ getIndexMarker(type: string, object: any): number {
             markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor})`;
         }
         // --- END: New logic ---
-
-
-        if (hasSelectedCategory && !isThisCategorySelected) {
-          // This marker is not in the selected category, make it much more transparent
-          markerElement.style.opacity = '0.1';
-          markerElement.style.pointerEvents = 'none'; // Make transparent markers non-interactive
+        const category = buttonCategory;
+        if (hasSelectedCategory) {
+          if (isThisCategorySelected) {
+            if (category === 'affluence') {
+              const op = this.getAffluenceCurrentOpacity(markerData);
+              markerElement.style.opacity = isNaN(op) ? '1' : String(op);
+              markerElement.style.pointerEvents = 'auto';
+            } else {
+              markerElement.style.opacity = '1';
+              markerElement.style.pointerEvents = 'auto';
+            }
+          } else {
+            // Hide non-selected categories completely
+            markerElement.style.opacity = '0';
+            markerElement.style.pointerEvents = 'none';
+          }
         } else {
-          // This marker is in the selected category or no category is selected, make it opaque
-          markerElement.style.opacity = '1';
-          markerElement.style.pointerEvents = 'auto';
+          // No filter active
+          if (category === 'affluence') {
+            // Let fading timers control opacity; ensure interactable
+            markerElement.style.pointerEvents = 'auto';
+          } else {
+            markerElement.style.opacity = '1';
+            markerElement.style.pointerEvents = 'auto';
+          }
         }
         markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out, filter 0.3s ease-in-out';
       }
@@ -3189,6 +3408,8 @@ getIndexMarker(type: string, object: any): number {
         this.loadPolylines();
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
+        // Update popup content for any SOS popups to reflect latest data
+        try { this.refreshSosPopups(); } catch {}
 
         this.isFetchingPoints = false;
       },
@@ -3197,6 +3418,81 @@ getIndexMarker(type: string, object: any): number {
         this.isFetchingPoints = false;
       }
     );
+  }
+
+  // Re-render content for all SOS popups using the latest dataset
+  private refreshSosPopups() {
+    try {
+      (this.objectjauneMarkers || []).forEach((mapObj: any) => {
+        const marker = mapObj?.object as any;
+        if (!marker) return;
+        const id = this.normalizeId(mapObj.id);
+        const updated = (this.jauneMarkers || []).find((p: any) => this.normalizeId(p.id) === id);
+        if (!updated) return;
+        const index = (this.jauneMarkers || []).findIndex((p: any) => this.normalizeId(p.id) === id);
+        const html = this.widgetContent('jaune', updated.userId, index, updated.like, updated.dislike, updated);
+        try {
+          const popup = typeof marker.getPopup === 'function' ? marker.getPopup() : null;
+          if (popup && typeof popup.setContent === 'function') {
+            popup.setContent(html);
+            if (typeof popup.update === 'function') { try { popup.update(); } catch {} }
+          } else {
+            // Fallback
+            marker.setPopupContent(html);
+          }
+        } catch {}
+        // Re-bind listeners for the refreshed popup buttons (whether open now or opened later)
+        setTimeout(() => {
+          try { this.handleBtnClick(index, 'jaune', updated); } catch {}
+          try { this.handleLikesAndDislikes(index, 'jaune', updated); } catch {}
+        }, 100);
+        // If currently open, force it to re-open to redraw DOM cleanly
+        try {
+          if (typeof marker.isPopupOpen === 'function' && marker.isPopupOpen()) {
+            marker.openPopup();
+          }
+        } catch {}
+      });
+    } catch (e) {
+      console.warn('Non-blocking SOS popup refresh error', e);
+    }
+  }
+
+  private openSosPopupById(id: number) {
+    try {
+      const normalizedId = this.normalizeId(id);
+      let target: any = (this.objectjauneMarkers || []).find((m: any) => this.normalizeId(m.id) === normalizedId);
+      if (!target) {
+        // Fallback: search by marker pointId
+        const marker = (this.allMarkers || []).find((mk: any) => this.normalizeId(mk.pointId) === normalizedId);
+        if (marker) {
+          target = { object: marker };
+        }
+      }
+      if (!target || !target.object) return;
+      const updated = (this.jauneMarkers || []).find((p: any) => this.normalizeId(p.id) === normalizedId);
+      const index = (this.jauneMarkers || []).findIndex((p: any) => this.normalizeId(p.id) === normalizedId);
+      if (updated) {
+        const html = this.widgetContent('jaune', updated.userId, index, updated.like, updated.dislike, updated);
+        const marker: any = target.object;
+        try {
+          const popup = typeof marker.getPopup === 'function' ? marker.getPopup() : null;
+          if (popup && typeof popup.setContent === 'function') {
+            popup.setContent(html);
+            if (typeof popup.update === 'function') { try { popup.update(); } catch {} }
+          } else {
+            marker.setPopupContent(html);
+          }
+        } catch {}
+      }
+      try { target.object.openPopup(); } catch {}
+      setTimeout(() => {
+        try { this.handleBtnClick(index, 'jaune', updated || {}); } catch {}
+        try { this.handleLikesAndDislikes(index, 'jaune', updated || {}); } catch {}
+      }, 100);
+    } catch (e) {
+      console.warn('Failed to open SOS popup by id', e);
+    }
   }
 
   private sanitizeLieu(raw: string): string {
@@ -4369,6 +4665,9 @@ getIndexMarker(type: string, object: any): number {
     console.log('App resumed, refreshing points and fading');
     this.getAllPoint();
     this.startRealtimeUpdates();
+    // Re-check GPS permission and attempt to locate after returning from settings
+    this.isGpsPermissionPromptOpen = false;
+    try { this.checkGpsPermissionFlow(); } catch {}
     
     // After points are loaded, refresh fading
     setTimeout(() => {

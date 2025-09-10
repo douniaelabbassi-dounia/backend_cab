@@ -1,0 +1,16 @@
+<ion-content class="ion-padding gps-permission-content">
+  <div class="modal-wrapper">
+    <div class="icon-wrap">
+      <ion-icon name="location-outline"></ion-icon>
+    </div>
+    <h2>Activer la localisation</h2>
+    <p>
+      Pour afficher votre position en temps réel sur la carte, activez le GPS et autorisez l'accès à la localisation.
+    </p>
+    <div class="actions">
+      <ion-button expand="block" color="primary" (click)="enableGps()">Activer le GPS</ion-button>
+      <ion-button expand="block" fill="clear" color="medium" (click)="notNow()">Plus tard</ion-button>
+    </div>
+  </div>
+</ion-content>
+

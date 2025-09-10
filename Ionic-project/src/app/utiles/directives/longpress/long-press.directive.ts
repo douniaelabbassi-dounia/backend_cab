@@ -112,7 +112,7 @@ export class LongPressDirective implements AfterViewInit{
           console.error('mapEventDirective is not a Mapbox Map instance');
         }
       }
-    }, 1000)
+    }, 2000)
   }
 
   //  addMarker = async (event:any) =>{

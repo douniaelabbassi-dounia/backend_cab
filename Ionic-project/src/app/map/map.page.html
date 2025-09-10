@@ -186,7 +186,7 @@
   class="bg-[#6A89CC] w-[40vw] h-[45px] m-1 ml-3 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto"
   (click)="handleStationClick()"
   [ngClass]="{
-    'opacity-40': transparent.station,
+    'opacity-40': anyFilterActive && !selectedBtn.station,
     'scale-105 ring-2 ring-indigo-300': selectedBtn.station && !transparent.station,
     'opacity-50': isTrialExpired || !heldMarker
   }"
@@ -214,7 +214,7 @@
   class="bg-yellow-400 w-[40vw] h-[45px] m-1 ml-3 flex items-center justify-center rounded-lg relative transition-all duration-300 pointer-events-auto"
   (click)="displayToggle('sos')"
   [ngClass]="{
-    'opacity-40': transparent.sos,
+    'opacity-40': anyFilterActive && !selectedBtn.sos,
     'scale-105 ring-2 ring-yellow-300': selectedBtn.sos && !transparent.sos,
     'pointer-events-none': isTrialExpired,
     'cursor-not-allowed': isTrialExpired
@@ -243,7 +243,7 @@
   class="bg-purple-500 w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto"
   (click)="displayToggle('evenements')"
   [ngClass]="{
-    'opacity-40': transparent.event,
+    'opacity-40': anyFilterActive && !selectedBtn.event,
     'scale-105 ring-2 ring-purple-300': selectedBtn.event && !transparent.event
   }"
   [ngStyle]="{
@@ -264,7 +264,7 @@
   class="bg-[#1ABCFE] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg drop-shadow-md transition-all duration-300 pointer-events-auto"
   (click)="displayToggle('autre')"
   [ngClass]="{
-    'opacity-40': transparent.autre
+    'opacity-40': anyFilterActive && !selectedBtn.autre
   }">
   <div *ngIf="transparent.autre" (click)="$event.stopPropagation(); clearLongPress('autre')" class="absolute w-[40vw] h-10"></div>
   <div>
@@ -277,7 +277,7 @@
   class="bg-[#EB2F06] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto"
   (click)="displayToggle('affluence')"
   [ngClass]="{
-    'opacity-40': transparent.affluence,
+    'opacity-40': anyFilterActive && !selectedBtn.affluence,
     'scale-105 ring-2 ring-red-300': selectedBtn.affluence && !transparent.affluence
   }"
   [ngStyle]="{
@@ -298,7 +298,7 @@
   class="relative bg-[#1D4999] w-[40vw] h-[45px] m-1 flex items-center justify-center rounded-lg transition-all duration-300 pointer-events-auto" 
   (click)="displayToggle('note')"
   [ngClass]="{
-    'opacity-40': transparent.note,
+    'opacity-40': anyFilterActive && !selectedBtn.note,
     'scale-105 ring-2 ring-blue-300': selectedBtn.note && !transparent.note
   }" 
   [ngStyle]="{
@@ -347,6 +347,24 @@
       [pointType]="selectedPointType" [originalPoint]="pointToEdit"
       (closeConfirmation)="displayToggle('edit-confirmation')" (saveEdit)="updatePoint($event)">
     </app-edit-confirmation>
+
+    <!-- GPS Permission Modal (inline, overlays map) -->
+    <div *ngIf="skipedPub === '1' && showGpsModal" class="fixed inset-0 flex items-center justify-center" style="z-index: 9999;">
+      <div class="absolute inset-0 bg-black bg-opacity-60"></div>
+      <div class="relative bg-white rounded-2xl shadow-xl w-[88vw] max-w-md p-5 mx-4">
+        <div class="flex items-center justify-center w-14 h-14 rounded-full mx-auto mb-3" style="background:#E6F4FF; color:#1D4999;">
+          <ion-icon name="location-outline" size="large"></ion-icon>
+        </div>
+        <h2 class="text-center text-lg font-semibold mb-1">Activer la localisation</h2>
+        <p class="text-center text-gray-600 text-sm mb-4">
+          Pour afficher votre position en temps réel sur la carte, activez le GPS et autorisez l'accès à la localisation.
+        </p>
+        <div class="space-y-2">
+          <ion-button expand="block" color="primary" (click)="onGpsEnableClick()">Activer le GPS</ion-button>
+          <ion-button expand="block" fill="clear" color="medium" (click)="onGpsLaterClick()">Plus tard</ion-button>
+        </div>
+      </div>
+    </div>
 
     <!-- Note Overlay - Notebook Style UI -->
     <div *ngIf="displayer.noteOverlayDisplay" class="note-overlay-container">

@@ -78,7 +78,7 @@ export class SignInPage implements OnInit {
           this.authService.$friendsList = data.user_info?.friends;
           this.email = ''
           this.password = ''
-          this.router.navigate(["/gpsaccess"]);
+          this.router.navigate(["/map"]);
         }else{
           presentToast('user or password incorrect', 'bottom', 'danger')
         }

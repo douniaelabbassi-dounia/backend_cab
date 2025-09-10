@@ -70,6 +70,7 @@ export class UpdateSosPage implements OnInit {
 
     this.pointsService.$updatePoint(content).subscribe((data: any) => {
       if (data && data.success === true) {
+        try { localStorage.setItem('justUpdatedSosId', String(this.pointId)); } catch {}
         presentToast('Le SOS a été modifié avec succès !', 'bottom', 'success');
         this.router.navigate(['/map']);
       }

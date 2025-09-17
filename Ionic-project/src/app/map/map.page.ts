@@ -13,9 +13,6 @@ import { Router } from '@angular/router';
 import { LongPressDirective } from '../utiles/directives/longpress/long-press.directive';
 
 
-
-
-
 @Component({
   selector: 'app-map',
   templateUrl: './map.page.html',
@@ -306,7 +303,7 @@ export class MapPage implements OnInit, OnDestroy {
     }
     if (this.hasPromptedForGps) {
       // Avoid re-prompting repeatedly; resume tracking if permission was granted.
-      try { await this.locateCurrentPosition(); } catch {}
+      try { this.myLocation(); } catch {}
       this.showGpsModal = false;
       return;
     }
@@ -314,7 +311,7 @@ export class MapPage implements OnInit, OnDestroy {
       await this.updatePermissionState();
       if (this.permissionState === 'granted') {
         this.showGpsModal = false;
-        try { await this.locateCurrentPosition(); } catch {}
+        try { this.myLocation(); } catch {}
         return;
       }
       // If we have a recent stored fix, don't show modal
@@ -322,7 +319,7 @@ export class MapPage implements OnInit, OnDestroy {
       const lng = localStorage.getItem('long');
       if (lat && lng) {
         this.showGpsModal = false;
-        try { await this.locateCurrentPosition(); } catch {}
+        try { this.myLocation(); } catch {}
         return;
       }
       // Probe one-shot location before showing modal
@@ -333,7 +330,7 @@ export class MapPage implements OnInit, OnDestroy {
           localStorage.setItem('long', String(fix.lng));
         } catch {}
         this.showGpsModal = false;
-        try { await this.locateCurrentPosition(); } catch {}
+        try { this.myLocation(); } catch {}
       } else {
         if (!this.isGpsPermissionPromptOpen) {
           this.showGpsModal = true;
@@ -536,7 +533,14 @@ export class MapPage implements OnInit, OnDestroy {
     this.myPosition = L.marker([this.position.lat, this.position.long], { icon: userIcon }).addTo(this.map!);
 
     //this.removeAllMarkers();
-    this.makeObjectMarker();
+    // Initialize markers with sync logic
+    this.syncMarkers({
+      red: this.redMarkers,
+      green: this.greenMarkers,
+      note: this.blueMarkers,
+      sos: this.jauneMarkers,
+      event: this.purpleMarkers
+    });
   }
 
   searchTimeout: any;
@@ -1078,29 +1082,23 @@ export class MapPage implements OnInit, OnDestroy {
     this.pointService.$getPoints().subscribe(
       (data: any) => {
         console.log('data all points', data);
-        // Update local data sets atomically after fetch completes
+        // --- FIX START: Replace full redraw with an intelligent sync logic ---
+        // This new logic will add/remove markers without destroying existing ones,
+        // which preserves the smooth opacity animation for affluence points.
+
+        // Update local data caches first
         this.redMarkers = data.red;
         this.greenMarkers = data.green;
         this.blueMarkers = data.note;
         this.jauneMarkers = data.sos;
         this.purpleMarkers = data.event;
-        // this.removeAllMarkers();
 
-        // First render pass: clear and build; Subsequent passes: targeted diff
-        if (!this.hasRenderedOnce) {
-          this.clearMarker();
-          this.loadPolylines();
-          this.makeObjectMarker();
-          this.hasRenderedOnce = true;
-        } else {
-          // UI-only refresh: update existing markers without full clear
-          this.refreshMarkersUI();
-          this.loadPolylines();
-        }
+        // Sync all marker types with the new data
+        this.syncMarkers(data);
+
         // Ensure periodic check for event visibility
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
-        try { this.refreshSosPopups(); } catch {}
 
         // Update popup content for SOS popups to reflect latest data
         try { this.refreshSosPopups(); } catch {}
@@ -1126,8 +1124,9 @@ export class MapPage implements OnInit, OnDestroy {
         }
         // --- END: New logic ---
 
-    // Ensure all markers are properly rendered after loading without forcing a full rebuild
-    requestAnimationFrame(() => this.map?.invalidateSize());
+        // Ensure all markers are properly rendered after loading without forcing a full rebuild
+        requestAnimationFrame(() => this.map?.invalidateSize());
+        // --- FIX END ---
 
       this.isFetchingPoints = false;
       },
@@ -1141,6 +1140,53 @@ export class MapPage implements OnInit, OnDestroy {
       }
     );
     console.log("")
+  }
+
+  // --- FIX: New marker synchronization logic ---
+  private syncMarkers(data: any) {
+    const newPointsData = {
+      red: data.red || [],
+      green: data.green || [],
+      blue: data.note || [],
+      jaune: data.sos || [],
+      event: data.event || [],
+    };
+
+    const allNewIds = new Set([].concat(...Object.values(newPointsData)).map((p: any) => p.id));
+    const allExistingIds = new Set(this.allMarkers.map((m: any) => m.pointId));
+
+    // 1. REMOVE STALE MARKERS
+    // Markers that exist on the map but are not in the new data payload
+    this.allMarkers = this.allMarkers.filter((marker: any) => {
+      const isAffluence = this.objectredMarkers.some(m => m.object === marker);
+      // Affluence markers manage their own removal via timers, so we don't touch them here
+      // unless they are explicitly removed from the backend data.
+      if (!allNewIds.has(marker.pointId) && !isAffluence) {
+        this.removeMarkerFromUI(marker.pointId, ''); // Remove non-affluence stale markers
+        return false;
+      }
+      return true;
+    });
+
+    // 2. ADD NEW MARKERS
+    // Markers that are in the new data but not yet on the map
+    const addNewMarkersForType = (points: any[], type: string) => {
+      const newPoints = points.filter(p => !allExistingIds.has(p.id));
+      if (newPoints.length > 0) {
+        this.addMarkers(newPoints, type);
+      }
+    };
+
+    addNewMarkersForType(newPointsData.red, 'red');
+    addNewMarkersForType(newPointsData.green, 'green');
+    addNewMarkersForType(newPointsData.blue, 'blue');
+    addNewMarkersForType(newPointsData.jaune, 'jaune');
+    addNewMarkersForType(newPointsData.event, 'event');
+
+    // 3. Final UI Sync
+    this.loadPolylines();
+    this.setMarkersOpacity();
+    this.ensureMarkersVisible();
   }
 
 
@@ -1638,13 +1684,21 @@ getIndexMarker(type: string, object: any): number {
   }
 
 
-  async myLocation() {
+  myLocation() {
     if (!this.map) { return; }
 
-    this.map.locate({ 
-      watch: true, 
+    // Clean up existing watch/interval to prevent duplicates
+    if (this.positionUpdateInterval) {
+      clearInterval(this.positionUpdateInterval);
+    }
+    this.map.stopLocate();
+    this.map.off('locationfound');
+    this.map.off('locationerror');
+
+    this.map.locate({
+      watch: true,
       setView: false, // we control centering manually on first fix
-      maxZoom: 16, 
+      maxZoom: 16,
       enableHighAccuracy: true,
       timeout: 30000,        // 30 seconds timeout instead of default 10s
       maximumAge: 0          // use freshest position for real-time tracking
@@ -1657,37 +1711,11 @@ getIndexMarker(type: string, object: any): number {
       localStorage.setItem('lat', latitude.toString());
       localStorage.setItem('long', longitude.toString());
 
+      // Only update the marker; do not move/center the map here
       this.addMarker('location', { position: { lat: latitude, long: longitude } });
       this.isGpsPermissionPromptOpen = false;
       this.showGpsModal = false;
-      const current = L.latLng(latitude, longitude);
-
-      // Center the map to the user's location on initial fix, then follow if enabled
-      if (!this.hasCenteredOnUser) {
-        try {
-          this.map?.flyTo([latitude, longitude], 17);
-      // bounds check omitted silently
-        } catch (err) {
-          console.warn('Failed to center on initial user location', err);
-        }
-        this.hasCenteredOnUser = true;
-        this.lastPanTs = Date.now();
-        this.lastUserLatLng = current;
-      } else if (this.followUser) {
-        try {
-          const now = Date.now();
-          const since = now - this.lastPanTs;
-          // Throttle and avoid tiny pans
-          if (since >= this.followPanThrottleMs && (!this.lastUserLatLng || current.distanceTo(this.lastUserLatLng) >= this.followPanMinDistanceMeters)) {
-            // Keep zoom as-is; smooth pan
-            this.map?.panTo(current, { animate: true, duration: 0.5 } as any);
-            this.lastPanTs = now;
-            this.lastUserLatLng = current;
-          }
-        } catch (err) {
-          console.warn('Failed to pan while following user', err);
-        }
-      }
+      this.lastUserLatLng = L.latLng(latitude, longitude);
     }
 
     const onLocationError = (e: L.ErrorEvent) => {
@@ -2131,24 +2159,18 @@ getIndexMarker(type: string, object: any): number {
 
   private buildDetailsBlock(type: string, content: any): string {
     if (!content) return '';
-    const hasTime = content.heureDebut || content.heureFin;
-    const datePart = content.date ? `<p class="text-sm text-gray-600">Date: <strong>${content.date}</strong></p>` : '';
+    // --- FIX START: Correctly display date and time for Notes ---
+    // For notes, display the selected days. For others, display the date range.
+    const dateDisplay = (type === 'note' || type === 'blue') ? (content.selectedDays || content.date) : content.date;
+    const datePart = dateDisplay ? `<p class="text-sm text-gray-600">Date: <strong>${dateDisplay}</strong></p>` : '';
+
+    // For notes, only show the start time. For events, show the start and end time if available.
     const timeStart = content.heureDebut ? `${content.heureDebut}` : '';
-    // If no heureFin, try to infer +1h for display like older logic did
-    const computedEnd = !content.heureFin && content.heureDebut && typeof content.heureDebut === 'string'
-      ? (() => {
-          const [h, m] = content.heureDebut.split(':').map((x: string) => parseInt(x, 10));
-          if (isNaN(h)) return '';
-          const endH = (h + 1) % 24;
-          const hh = endH < 10 ? `0${endH}` : `${endH}`;
-          const mm = !isNaN(m) ? (m < 10 ? `0${m}` : `${m}`) : '00';
-          return `${hh}:${mm}`;
-        })()
+    const timeEnd = (type === 'event' && content.heureFin) ? ` - ${content.heureFin}` : '';
+    const timePart = timeStart
+      ? `<p class="text-sm text-gray-600">Heure: <strong>${timeStart}${timeEnd}</strong></p>`
       : '';
-    const endTime = content.heureFin || computedEnd;
-    const timePart = hasTime || endTime
-      ? `<p class="text-sm text-gray-600">Heure: <strong>${timeStart || '--:--'}${endTime ? ` - ${endTime}` : ''}</strong></p>`
-      : '';
+    // --- FIX END ---
 
     const lieu = content.lieu || content.name || 'Lieu inconnu';
     const typeLabel = content.type || (type === 'jaune' ? 'SOS' : type);
@@ -2562,43 +2584,7 @@ getIndexMarker(type: string, object: any): number {
     }
   }
 
-  makeObjectMarker() {
-    // --- THIS IS THE FIX ---
-    // 1. Temporarily disable marker transitions to prevent the "falling" animation.
-    const styleSheet = document.styleSheets[0];
-    if (styleSheet) {
-      try {
-        styleSheet.insertRule('.leaflet-marker-icon { transition: none !important; }', styleSheet.cssRules.length);
-      } catch (e) { console.warn("Could not disable marker transitions", e); }
-    }
-    
-    this.clearMarker();
   
-    this.addMarkers(this.purpleMarkers, 'event');
-    this.addMarkers(this.redMarkers, 'red');
-    this.addMarkers(this.greenMarkers, 'green');
-    this.addMarkers(this.blueMarkers, 'blue');
-    this.addMarkers(this.jauneMarkers, 'jaune');
-
-    // 2. Re-enable the transitions after a very short delay.
-    // This allows the markers to appear instantly, but subsequent opacity changes will be animated.
-    setTimeout(() => {
-      if (styleSheet && styleSheet.cssRules.length > 0) {
-        try {
-          // Find and remove the rule we just added.
-          for (let i = styleSheet.cssRules.length - 1; i >= 0; i--) {
-            if (styleSheet.cssRules[i].cssText.includes('.leaflet-marker-icon { transition: none !important; }')) {
-              styleSheet.deleteRule(i);
-              break;
-            }
-          }
-        } catch (e) { console.warn("Could not re-enable marker transitions", e); }
-      }
-      // Also re-apply the correct opacity state now that transitions are back.
-      this.setMarkersOpacity();
-    }, 100);
-  }
-
   private addMarkers(markerList: any[], type: string) {
     if (!this.map) return; // Ensure map exists before adding markers
     
@@ -2657,19 +2643,11 @@ getIndexMarker(type: string, object: any): number {
       // Set opacity based on filter selection AND apply ownership styles
       const markerElement = newMarker.getElement();
       if (markerElement) {
-        const shadowColor = this.getShadowColorForType(type, markerData);
-        // --- START: New logic for highlighting user's own markers ---
         if (markerData.userId === this.authService.$userinfo.id) {
             // Apply styles to make the user's own markers stand out
             markerElement.style.transform = 'scale(1.15)'; // Make it 15% larger
-            // Add a subtle but clear glow effect using a filter that matches marker color
-            markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor}) brightness(1.05)`;
             markerElement.style.zIndex = '1000'; // Ensure it's visually on top of other markers
-        } else {
-            // Non-owner markers still get a colored shadow matching their type
-            markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor})`;
         }
-        // --- END: New logic ---
         const category = buttonCategory;
         if (hasSelectedCategory) {
           if (isThisCategorySelected) {
@@ -2696,7 +2674,7 @@ getIndexMarker(type: string, object: any): number {
             markerElement.style.pointerEvents = 'auto';
           }
         }
-        markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out, filter 0.3s ease-in-out';
+        markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
       }
 
        // Populate specific marker object arrays with full data
@@ -2744,7 +2722,7 @@ getIndexMarker(type: string, object: any): number {
    * @param type The type of the point ('red', 'green', 'event', etc.).
    */
 
-  private removeMarkerFromUI(pointId: number, type: string) {
+  private removeMarkerFromUI(pointId: number, type: string = '') {
     let objectMarkers: any[] = [];
     let dataMarkers: any[] = [];
     let typeToFilter = type;
@@ -2761,8 +2739,8 @@ getIndexMarker(type: string, object: any): number {
     // --- THIS IS THE FIX ---
     // If the deleted point is an affluence marker, we must also clear its specific fading timer.
     if (typeToFilter === 'red') {
-      if (this.affluenceTimers[pointId]) {
-        clearInterval(this.affluenceTimers[pointId]); // Stop the timer.
+      if (this.affluenceTimers[pointId]) { // It's now a setTimeout
+        clearTimeout(this.affluenceTimers[pointId]); // Stop the timer.
         delete this.affluenceTimers[pointId];      // Remove it from the timers object.
         console.log(`Cleared fading timer for affluence point ID: ${pointId}`);
       }
@@ -2878,15 +2856,11 @@ getIndexMarker(type: string, object: any): number {
         // Apply icon color shadow like other markers
         const markerElement = newMarker.getElement();
         if (markerElement) {
-          const shadowColor = this.getShadowColorForType('event', ev);
           if (ev.userId === this.authService.$userinfo?.id) {
             markerElement.style.transform = 'scale(1.15)';
-            markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor}) brightness(1.05)`;
             markerElement.style.zIndex = '1000';
-          } else {
-            markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor})`;
           }
-          markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out, filter 0.3s ease-in-out';
+          markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
         }
 
         const mapObject = { ...ev, object: newMarker, id: ev.id };
@@ -2936,12 +2910,9 @@ getIndexMarker(type: string, object: any): number {
     const dd = String(current.getDate()).padStart(2, '0');
     const startIso = `${yyyy}-${mm}-${dd}T${el.heureDebut}:00`;
     const start = new Date(startIso).getTime();
-    // derive end if missing (+1h)
-    const endIso = el.heureFin ? `${yyyy}-${mm}-${dd}T${el.heureFin}:00` : this.datePlusOneHour(startIso);
-    const end = new Date(endIso).getTime();
 
-    const startWindow = start - 15 * 60 * 1000;
-    const endWindow = end + 15 * 60 * 1000;
+    const startWindow = start - 15 * 60 * 1000; // 15 minutes before start time
+    const endWindow = start + 15 * 60 * 1000;   // 15 minutes after start time (total 30 min duration)
     return currentMs >= startWindow && currentMs <= endWindow;
   }
 
@@ -2986,15 +2957,11 @@ getIndexMarker(type: string, object: any): number {
 
         const markerElement = newMarker.getElement();
         if (markerElement) {
-          const shadowColor = this.getShadowColorForType('note', note);
           if (note.userId === this.authService.$userinfo?.id) {
             markerElement.style.transform = 'scale(1.15)';
-            markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor}) brightness(1.05)`;
             markerElement.style.zIndex = '1000';
-          } else {
-            markerElement.style.filter = `drop-shadow(0 0 6px ${shadowColor})`;
           }
-          markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out, filter 0.3s ease-in-out';
+          markerElement.style.transition = 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out';
         }
 
         const mapObject = { ...note, object: newMarker };
@@ -3007,54 +2974,64 @@ getIndexMarker(type: string, object: any): number {
     });
   }
 
+  private calculerOpacite(dureeApparition: number, anciennete: number): number {
+      if (dureeApparition <= 0) {
+          return 0; // Avoid division by zero and handle invalid duration.
+      }
+      
+      // Formula: opaciteDouble = 100 / dureeApparition * (dureeApparition - anciennete)
+      // We will return a ratio (0-1) for CSS compatibility.
+      const opaciteRatio = (1 / dureeApparition) * (dureeApparition - anciennete);
+      
+      // Clamp the value between 0 and 1
+      return Math.max(0, Math.min(1, opaciteRatio));
+  }
+
   /**
-   * Starts the fading process for a given affluence point marker.
-   * The duration and fading logic are determined by the point's 'level'.
+   * Starts the smooth fading process for a given affluence point marker using CSS transitions.
    * @param marker The Leaflet marker instance on the map.
    * @param pointData The data associated with the affluence point.
    */
   private startFadingForPoint(marker: L.Marker, pointData: any) {
-    const pointId: number = typeof pointData.id === 'string' ? parseInt(pointData.id, 10) : pointData.id;
+    const pointId: number = this.normalizeId(pointData.id);
     if (!pointId || this.affluenceTimers[pointId]) {
       return; // Already scheduled or invalid id
     }
 
     const totalDurationMs = this.getAffluenceDurationMs(pointData.level);
     const createdAt = this.parseAffluenceCreationDate(pointData);
+    const now = new Date().getTime();
+    const elapsedMs = now - createdAt.getTime();
+    const remainingMs = totalDurationMs - elapsedMs;
 
-    const applyOpacity = () => {
-      const now = new Date().getTime();
-      const elapsed = now - createdAt.getTime();
-      const remaining = totalDurationMs - elapsed;
+    const markerElement = marker.getElement();
+    if (!markerElement) return;
 
-      const markerElement = marker.getElement();
-      if (!markerElement) return;
+    if (remainingMs <= 0) {
+      try { marker.remove(); } catch {}
+      this.removeMarkerFromUI(pointId, 'red');
+      this.expireAffluencePoint(pointId);
+      return;
+    }
 
-      if (remaining <= 0) {
-        // Expire on client and backend
-        try { marker.remove(); } catch {}
-        const idx = this.allMarkers.indexOf(marker);
-        if (idx >= 0) this.allMarkers.splice(idx, 1);
-        // Remove from objectredMarkers
-        this.objectredMarkers = this.objectredMarkers.filter((o: any) => o.id !== pointId);
-        // Stop timer
-        clearInterval(this.affluenceTimers[pointId]);
-        delete this.affluenceTimers[pointId];
-        // Inform backend to disable
-        this.expireAffluencePoint(pointId);
-        return;
-      }
+    // 1. Calculate and set the initial opacity using the required formula.
+    const initialOpacity = this.calculerOpacite(totalDurationMs / 60000, elapsedMs / 60000);
+    markerElement.style.opacity = String(initialOpacity);
 
-      // Linear fade: 1 -> 0 across the duration
-      const ratio = Math.max(0, Math.min(1, remaining / totalDurationMs));
-      const opacity = ratio; // 1 at start, 0 at end
-      markerElement.style.opacity = opacity.toString();
-      markerElement.style.pointerEvents = opacity < 0.15 ? 'none' : 'auto';
-    };
+    // 2. Apply the transition and fade to 0. Use a small delay for the browser to register the initial state.
+    setTimeout(() => {
+      if (!marker.getElement()) return;
+      const remainingSeconds = remainingMs / 1000;
+      markerElement.style.transition = `opacity ${remainingSeconds}s linear`;
+      markerElement.style.opacity = '0';
+      markerElement.style.pointerEvents = 'none';
+    }, 50);
 
-    // Apply immediately and then schedule periodic updates
-    applyOpacity();
-    this.affluenceTimers[pointId] = setInterval(applyOpacity, 30000); // every 30s
+    // 3. Schedule the final cleanup to remove the marker after the transition ends.
+    this.affluenceTimers[pointId] = setTimeout(() => {
+      this.removeMarkerFromUI(pointId, 'red');
+      // Note: expireAffluencePoint is called within removeMarkerFromUI's logic
+    }, remainingMs);
   }
 
   private getAffluenceDurationMs(level: any): number {
@@ -3135,8 +3112,8 @@ getIndexMarker(type: string, object: any): number {
 
     // Clear all affluence timers
     const timerCount = Object.keys(this.affluenceTimers).length;
-    Object.keys(this.affluenceTimers).forEach(pointId => {
-      clearInterval(this.affluenceTimers[parseInt(pointId)]);
+    Object.values(this.affluenceTimers).forEach(timerId => {
+      clearTimeout(timerId as any);
     });
     this.affluenceTimers = {};
   }
@@ -3296,70 +3273,8 @@ getIndexMarker(type: string, object: any): number {
     return this.markerLevel(type, el.level, el.userId, el.role);
   }
   
-  private getShadowColorForType(type: string, markerData?: any): string {
-    switch (type) {
-      case 'red':
-        return 'rgba(235, 47, 6, 0.85)'; // #EB2F06
-      case 'green':
-        return 'rgba(39, 174, 96, 0.85)'; // #27AE60
-      case 'blue':
-      case 'note':
-        return 'rgba(29, 73, 153, 0.85)'; // #1D4999
-      case 'jaune':
-        return 'rgba(242, 201, 76, 0.85)'; // #F2C94C
-      case 'event':
-        return 'rgba(162, 89, 255, 0.85)'; // #A259FF
-      case 'location':
-        return 'rgba(39, 174, 96, 0.85)'; // same as location icon color
-      default:
-        return 'rgba(0, 0, 0, 0.35)';
-    }
-  }
 
-  // UI-only refresh: minimal update of marker layer without full clear
-  private refreshMarkersUI() {
-    if (!this.map) return;
-    try {
-      // Remove markers that no longer exist in data arrays
-      const validIds = new Set([
-        ...this.redMarkers.map((m: any) => m.id),
-        ...this.greenMarkers.map((m: any) => m.id),
-        ...this.blueMarkers.map((m: any) => m.id),
-        ...this.jauneMarkers.map((m: any) => m.id),
-        ...this.purpleMarkers.map((m: any) => m.id),
-      ]);
-
-      // Remove orphan markers
-      this.allMarkers = this.allMarkers.filter((marker: any) => {
-        const id = (marker as any).pointId;
-        if (!validIds.has(id)) {
-          try { marker.remove(); } catch {}
-          return false;
-        }
-        return true;
-      });
-
-      // Re-add or add missing markers per category without clearing all
-      this.addMarkers(this.purpleMarkers, 'event');
-      this.addMarkers(this.redMarkers, 'red');
-      this.addMarkers(this.greenMarkers, 'green');
-      this.addMarkers(this.blueMarkers, 'blue');
-      this.addMarkers(this.jauneMarkers, 'jaune');
-
-      // Re-apply visual state and force visibility
-      this.setMarkersOpacity();
-      this.ensureMarkersVisible();
-
-      // Align with browser paint and force a non-visual re-render
-      this.ensureMarkersVisible();
-    } catch (e) {
-      console.warn('Non-blocking UI refresh error:', e);
-      // Fallback to full rebuild if something went wrong
-      this.clearMarker();
-      this.makeObjectMarker();
-    }
-  }
-
+  
   // Force Leaflet to finalize marker layout without visible movement
   private ensureMarkersVisible() {
     if (!this.map) return;
@@ -3404,7 +3319,7 @@ getIndexMarker(type: string, object: any): number {
         this.purpleMarkers = data.event;
 
         // Diff-based UI refresh
-        this.refreshMarkersUI();
+        this.syncMarkers(data);
         this.loadPolylines();
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
@@ -3739,6 +3654,11 @@ getIndexMarker(type: string, object: any): number {
 
     // Iterate through stations and draw polylines from backend only
     this.greenMarkers.forEach((station: any) => {
+      // --- FIX: Do not draw the solid polyline for the station currently being edited ---
+      if (this.editingStationId && this.normalizeId(station.id) === this.editingStationId) {
+        console.log(`In edit mode for station ${this.editingStationId}, skipping solid line render.`);
+        return;
+      }
       if (!station.polyline) return;
       try {
         const parsed = JSON.parse(station.polyline);
@@ -3748,6 +3668,8 @@ getIndexMarker(type: string, object: any): number {
           const latlngs = seg.map(toLatLng);
           if (latlngs.length >= 2) {
             const polyline = L.polyline(latlngs, { color: '#4A90E2', weight: 4, opacity: 0.9 }).addTo(this.map!);
+            // Tag polyline with stationId so we can clean up any leftover layers not tracked in this.polylines
+            (polyline as any).stationId = String(station.id);
             this.polylines.push({ id: String(station.id), polyline });
           }
         });
@@ -3778,6 +3700,8 @@ getIndexMarker(type: string, object: any): number {
         const latlngs = (seg || []).map(toLatLng);
         if (latlngs.length >= 2) {
           const polyline = L.polyline(latlngs, { color: '#4A90E2', weight: 4, opacity: 0.9 }).addTo(this.map!);
+          // Tag polyline for robust cleanup later
+          (polyline as any).stationId = String(stationId);
           this.polylines.push({ id: String(stationId), polyline });
         }
       });
@@ -3795,11 +3719,63 @@ getIndexMarker(type: string, object: any): number {
     }
 
   private removePolylinesByStationId(stationId: number | string) {
-    const toRemove = this.polylines.filter(p => p.id === String(stationId));
-    toRemove.forEach(p => {
-      try { p.polyline.remove(); } catch {}
-    });
-    this.polylines = this.polylines.filter(p => p.id !== String(stationId));
+    const stationKey = String(stationId);
+
+    // 1) Remove any polylines we are tracking for this station
+    const toRemove = this.polylines.filter(p => p.id === stationKey);
+    toRemove.forEach(p => { try { p.polyline.remove(); } catch {} });
+    this.polylines = this.polylines.filter(p => p.id !== stationKey);
+
+    // 2) Sweep the map for any leftover polylines tagged with this stationId
+    try {
+      this.map?.eachLayer((layer: any) => {
+        if (!(layer instanceof L.Polyline)) return;
+        const sid = (layer as any).stationId;
+        const isDashed = (layer.options || {}).dashArray === '5, 10';
+        // skip dashed edit lines here; they are cleaned up elsewhere
+        if (!isDashed && sid && String(sid) === stationKey) {
+          try { layer.remove(); } catch {}
+        }
+      });
+    } catch {}
+
+    // 3) Fallback: if older polylines weren't tagged, remove any solid blue polylines
+    // that are likely tied to this station by proximity to the station marker
+    try {
+      const target = (this.greenMarkers || []).find((g: any) => String(g.id) === stationKey);
+      if (!target) return;
+      const near = (a: number, b: number) => Math.abs(a - b) < 0.0005;
+      const tLat = target.lat, tLng = target.lng ?? target.lon;
+      if (tLat == null || tLng == null) return;
+      this.map?.eachLayer((layer: any) => {
+        if (!(layer instanceof L.Polyline)) return;
+        const opts = layer.options || {};
+        const isDashed = opts.dashArray === '5, 10';
+        const isBlue = opts.color === '#4A90E2';
+        if (isDashed || !isBlue) return;
+        let latlngs: any = layer.getLatLngs?.();
+        if (!latlngs) return;
+        // normalize nested latlngs without using Array.prototype.flat for older TS targets
+        if (Array.isArray(latlngs) && Array.isArray(latlngs[0])) {
+          const merged: any[] = [];
+          (latlngs as any[]).forEach((seg: any) => {
+            if (Array.isArray(seg)) { merged.push.apply(merged, seg); }
+            else { merged.push(seg); }
+          });
+          latlngs = merged;
+        }
+        if (!Array.isArray(latlngs)) return;
+        const touchesStation = latlngs.some((ll: any) => {
+          const lat = (ll && typeof ll.lat === 'number') ? ll.lat : ll?.[0];
+          const lng = (ll && typeof ll.lng === 'number') ? ll.lng : (ll?.lon ?? ll?.[1]);
+          if (lat == null || lng == null) return false;
+          return near(lat, tLat) && near(lng, tLng);
+        });
+        if (touchesStation) {
+          try { layer.remove(); } catch {}
+        }
+      });
+    } catch {}
   }
 
     // --- Refactored Polyline Drawing Logic ---
@@ -3857,7 +3833,15 @@ getIndexMarker(type: string, object: any): number {
   }
 
   // Enable editing of an existing station path: drag vertices and delete segments
-  private enablePolylineEditing(station: any) {
+  private enablePolylineEditing(staleStation: any) {
+    // --- FIX: Fetch latest station data to avoid editing a stale path ---
+    const stationId = this.normalizeId(staleStation.id);
+    const station = this.greenMarkers.find((s: any) => this.normalizeId(s.id) === stationId);
+    if (!station) {
+      console.error(`Cannot edit station ${stationId}: Not found in local data.`);
+      presentToast('Erreur: Impossible de trouver les données de la station.', 'bottom', 'danger');
+      return;
+    }
     if (this.isDrawingPolyline) return;
     if (!this.map) return;
     this.isDrawingPolyline = true;
@@ -4482,7 +4466,13 @@ getIndexMarker(type: string, object: any): number {
           }
 
           // Final UI refresh to ensure all artifacts disappear immediately
-          try { this.refreshMarkersUI(); } catch {}
+          try { this.syncMarkers({
+            red: this.redMarkers,
+            green: this.greenMarkers,
+            note: this.blueMarkers,
+            sos: this.jauneMarkers,
+            event: this.purpleMarkers
+          }); } catch {}
           try { this.ensureMarkersVisible(); } catch {}
 
         } else {
@@ -4512,6 +4502,20 @@ getIndexMarker(type: string, object: any): number {
           // silent success
           presentToast(response.message, 'bottom', 'success');
           this.displayer.editPointConfirmation = false;
+          
+          // --- START FIX ---
+          // After a successful backend update, update the local cache to prevent
+          // stale data from being redrawn during periodic refreshes.
+          if (updateData.type === 'green') {
+            const stationId = this.normalizeId(updateData.id);
+            const stationIndex = this.greenMarkers.findIndex((s: any) => this.normalizeId(s.id) === stationId);
+            if (stationIndex > -1) {
+              // Merge the new data (e.g., the updated 'polyline' string) into our local copy.
+              Object.assign(this.greenMarkers[stationIndex], updateData.newData);
+              console.log(`Local cache updated for station ${stationId}`, this.greenMarkers[stationIndex]);
+            }
+          }
+          // --- END FIX ---
         } else {
           presentToast(response.message, 'bottom', 'danger');
         }
@@ -4654,7 +4658,7 @@ getIndexMarker(type: string, object: any): number {
     }
 
     // Clear all affluence fading timers
-    Object.values(this.affluenceTimers).forEach(timer => clearInterval(timer));
+    Object.values(this.affluenceTimers).forEach(timer => clearTimeout(timer as any));
     this.affluenceTimers = {};
   }
 

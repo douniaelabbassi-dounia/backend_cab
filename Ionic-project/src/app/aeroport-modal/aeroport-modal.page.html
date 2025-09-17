@@ -97,7 +97,7 @@
         <div class="flex items-center">
           <input
             type="number"
-            [(ngModel)]="aeroport.attenteBAT.split('h')[0]"
+            [(ngModel)]="attenteHours"
             class="w-20 px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
           <span class="ml-2 text-gray-600">H</span>
@@ -105,7 +105,7 @@
         <div class="flex items-center">
           <input
             type="number"
-            [(ngModel)]="aeroport.attenteBAT.split(' ')[1]"
+            [(ngModel)]="attenteMinutes"
             class="w-20 px-3 py-2 border border-gray-200 rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
           <span class="ml-2 text-gray-600">Min</span>

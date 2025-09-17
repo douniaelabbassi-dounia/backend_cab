@@ -48,9 +48,9 @@ export class ListPointsService {
     return this.http.get(this.$UrlPoints,{headers: this.$Authorization});
   }
 
-  $getMyPoints(){
+  $getMyPoints(force: boolean = false){
     // If a refresh is forced or there's no cache, fetch from the server
-    if (this.forceRefresh || !this.myPointsCache) {
+    if (force || this.forceRefresh || !this.myPointsCache) {
       this.forceRefresh = false; // Reset the flag
       this.$inicializeToken();
       return this.http.get(this.$UrlMyPoints, { headers: this.$Authorization }).pipe(

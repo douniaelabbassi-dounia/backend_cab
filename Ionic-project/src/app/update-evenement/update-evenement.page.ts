@@ -1,8 +1,9 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import axios from 'axios';
 import { ListPointsService } from '../utiles/services/points/list-points.service';
 import { presentToast } from '../utiles/component/notification';
+import { NavController } from '@ionic/angular';
 
 @Component({
   selector: 'app-update-evenement',
@@ -34,9 +35,9 @@ export class UpdateEvenementPage implements OnInit {
   pointId: string | null = '';
 
   constructor(
-    private router: Router,
     private route: ActivatedRoute,
-    private pointsService: ListPointsService
+    private pointsService: ListPointsService,
+    private navController: NavController
   ) {}
 
   ngOnInit() {
@@ -93,7 +94,7 @@ export class UpdateEvenementPage implements OnInit {
   }
 
   close() {
-    this.router.navigate(['/list-evenement']);
+    this.navController.back();
   }
 
   updatePoint() {
@@ -112,7 +113,9 @@ export class UpdateEvenementPage implements OnInit {
       if (data && data.success === true) {
 
         presentToast("L'événement a été modifié avec succès !", 'bottom', 'success');
-        this.router.navigate(['list-evenement']);
+        // Navigate back to the previous page in the stack, which is the event list.
+        // This correctly removes the update page from the navigation history.
+        this.navController.back();
       }
     });
   }

@@ -1,5 +1,6 @@
 import { NgModule } from '@angular/core';
 import { Routes, RouterModule } from '@angular/router';
+import { IonicModule } from '@ionic/angular';
 
 import { ListEvenementPage } from './list-evenement.page';
 

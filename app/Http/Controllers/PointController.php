@@ -54,7 +54,7 @@ class PointController extends Controller
                 $otherpoint->heureDebut = $request->heureDebut;
                 $otherpoint->heureFin = $request->heureFin;
                 $check = 'green';
-                $this->participationService->addPointsForStation($user);
+                $this.participationService->addPointsForStation($user);
             }
             if($request->typePoint == 'jaune'){
                 $otherpoint = new JaunePoint();
@@ -77,8 +77,6 @@ class PointController extends Controller
                 $otherpoint->heureDebut = $request->heureDebut;
                 $check = 'note';
                 $user->pointDuration+=10;
-                $otherpoint->save(); // Save inside the if block
-                return response()->json(['done' => true, 'id' => $point->id,'type'=>$check], 201);
             } else if($request->typePoint == 'event'){
                 $otherpoint = new EventPoint();
                 $otherpoint->pointId = $point->id;
@@ -90,13 +88,27 @@ class PointController extends Controller
                 $check = 'event';
                 $this->participationService->addPointsForEvent($user);
             }
-            if (isset($otherpoint) && $request->typePoint != 'note') {
+            if (isset($otherpoint)) {
                 if ($request->has('level')) {
                     $otherpoint->level = $request->level;
                 }
                 $otherpoint->save();
             }
-            return response()->json(['done' => true, 'id' => $point->id,'type'=>$check], 201);
+    
+            // Fetch the newly created point with all its relations
+            $newPoint = Point::where('id', $point->id)
+                            ->with(['user.role', 'affluence', 'event', 'station', 'note', 'feedback', 'sos'])
+                            ->first();
+    
+            // Process the new point to get the formatted data
+            $processedPoint = $this->processPoints([$newPoint]);
+    
+            return response()->json([
+                'done' => true,
+                'point' => $processedPoint,
+                'type' => $check
+            ], 201);
+    
         } catch (\Exception $e) {
             if(isset($point)){
                 $point->forceDelete();

@@ -45,6 +45,7 @@
 
   // Protected routes (require authentication)
   Route::middleware(['auth:sanctum'])->group(function () {
+      Route::get('/profile', [AuthController::class, 'profile']);
 
       // point apis
       Route::get('/points/all', [PointController::class, 'getAllPoints']);

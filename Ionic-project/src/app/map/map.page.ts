@@ -61,7 +61,7 @@ export class MapPage implements OnInit, OnDestroy {
     showPub: false,
     listPoints: false,
     deletePointConfirmation: false,
-    noteOverlayDisplay: false,
+    memoOverlayDisplay: false,
     editPointConfirmation: false,
   };
 
@@ -1307,40 +1307,41 @@ export class MapPage implements OnInit, OnDestroy {
       (data: any) => {
         if (data && data.done) {
           try { if (newMarker && typeof newMarker.remove === 'function') { newMarker.remove(); } } catch {}
-          this.newPointId = data.id;
+          
+          const pointType = data.type;
+          const newPointData = data.point[pointType][0];
+
+          this.newPointId = newPointData.id;
+
           // Track newly created notes for a short grace period
           if (type === 'note') {
-            const nid = this.normalizeId(data.id);
+            const nid = this.normalizeId(newPointData.id);
             if (nid > 0) {
               const expiresAt = Date.now() + 300000; // 5 minutes grace
               this.recentlyCreatedNotes.set(nid, expiresAt);
             }
           }
-          const newPoint = { 
-            ...content, 
-            id: data.id,
-            userId: content.userID || content.userId || this.authService.$userinfo.id
-          };
+
           switch (type) {
             case 'green':
-              this.greenMarkers.push({ ...newPoint, polyline: newPoint['polyline'] ?? null });
-              this.addMarkers([{ ...newPoint }], 'green');
+              this.greenMarkers.push({ ...newPointData, polyline: newPointData['polyline'] ?? null });
+              this.addMarkers([{ ...newPointData }], 'green');
               break;
             case 'red':
-              this.redMarkers.push(newPoint);
-              this.addMarkers([newPoint], 'red');
+              this.redMarkers.push(newPointData);
+              this.addMarkers([newPointData], 'red');
               break;
             case 'jaune':
-              this.jauneMarkers.push(newPoint);
-              this.addMarkers([newPoint], 'jaune');
+              this.jauneMarkers.push(newPointData);
+              this.addMarkers([newPointData], 'jaune');
               break;
             case 'note':
-              this.blueMarkers.push(newPoint);
-              this.addMarkers([newPoint], 'blue');
+              this.blueMarkers.push(newPointData);
+              this.addMarkers([newPointData], 'blue');
               break;
             case 'event':
-              this.purpleMarkers.push(newPoint);
-              this.addMarkers([newPoint], 'event');
+              this.purpleMarkers.push(newPointData);
+              this.addMarkers([newPointData], 'event');
               break;
           }
         }
@@ -1424,7 +1425,7 @@ getIndexMarker(type: string, object: any): number {
   }
 
   async addMarker(type: string, choice: any): Promise<void> {
-    if (this.authService.$userinfo !== null) {
+    if (this.authService.$userinfo) {
       let currentMarker: any = null;
 
       switch (type) {
@@ -1900,7 +1901,7 @@ getIndexMarker(type: string, object: any): number {
     if (type == 'red') {
 
 
-      if (content.userId == this.authService.$userinfo.id) {
+      if (content.userId == this.authService.$userinfo?.id) {
 
         const dateTimeContent = !content.created_at
           ? `<div class="shimmer-container">
@@ -1979,7 +1980,7 @@ getIndexMarker(type: string, object: any): number {
     } else if (type == 'event') {
 
 
-      if (content.userId == this.authService.$userinfo.id) {
+      if (content.userId == this.authService.$userinfo?.id) {
 
         return `<div class="bg-white ring-gray-900/5">
           ${detailsBlock}
@@ -2006,7 +2007,7 @@ getIndexMarker(type: string, object: any): number {
     } else if (type == 'jaune') {
 
 
-      if (content.userId == this.authService.$userinfo.id) {
+      if (content.userId == this.authService.$userinfo?.id) {
 
         return `<div class="bg-white ring-gray-900/5">
           ${detailsBlock}
@@ -2047,7 +2048,7 @@ getIndexMarker(type: string, object: any): number {
     if (type == 'green') {
 
 
-      if (content.userId == this.authService.$userinfo.id) {
+      if (content.userId == this.authService.$userinfo?.id) {
 
         return `<div class="bg-white ring-gray-900/5 rounded-lg p-4 shadow-md">
           ${detailsBlock}
@@ -2115,7 +2116,7 @@ getIndexMarker(type: string, object: any): number {
    if (type == 'note' || type=='blue') {
   
   
-        if (content.userId == this.authService.$userinfo.id) {
+        if (content.userId == this.authService.$userinfo?.id) {
   
           return `
           <div class="bg-white ring-gray-900/5">
@@ -2643,7 +2644,7 @@ getIndexMarker(type: string, object: any): number {
       // Set opacity based on filter selection AND apply ownership styles
       const markerElement = newMarker.getElement();
       if (markerElement) {
-        if (markerData.userId === this.authService.$userinfo.id) {
+        if (markerData.userId === this.authService.$userinfo?.id) {
             // Apply styles to make the user's own markers stand out
             markerElement.style.transform = 'scale(1.15)'; // Make it 15% larger
             markerElement.style.zIndex = '1000'; // Ensure it's visually on top of other markers
@@ -3459,12 +3460,12 @@ getIndexMarker(type: string, object: any): number {
 
   // handling event click of infoWindow (red and event)
 
-  openNotesOverlay() {
-    this.displayer.noteOverlayDisplay = true;
+  openMemosOverlay() {
+    this.displayer.memoOverlayDisplay = true;
   }
 
-  closeNoteOverlay() {
-    this.displayer.noteOverlayDisplay = false;
+  closeMemosOverlay() {
+    this.displayer.memoOverlayDisplay = false;
   }
 
   editNote(note: any) {
@@ -3472,7 +3473,7 @@ getIndexMarker(type: string, object: any): number {
   }
 
   deleteNote(note: any) {
-    this.confirmationContent = 'Êtes-vous sûr de vouloir supprimer cette note ?';
+    this.confirmationContent = 'Êtes-vous sûr de vouloir supprimer ce mémo ?';
     this.displayer.deletePointConfirmation = true;
     this.selectedpointId = note.id;
     this.selectedPointType = 'note';
@@ -3487,7 +3488,7 @@ getIndexMarker(type: string, object: any): number {
         noteMarker.object.openPopup();
       }
     }
-    this.closeNoteOverlay();
+    this.closeMemosOverlay();
   }
 
   handleStationClick() {
@@ -4185,7 +4186,7 @@ getIndexMarker(type: string, object: any): number {
          });
        }
      } else if (type == 'red') {
-       if (this.authService.$userinfo.id == object.userId) {
+       if (this.authService.$userinfo?.id == object.userId) {
          btn = document.getElementById(`${'supprimer' + index}`);
          action = 'delete';
           if (btn) {

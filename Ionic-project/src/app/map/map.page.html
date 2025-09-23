@@ -311,7 +311,7 @@
       <img src="../../assets/icon/note.svg" class="pr-1 w-4 h-4" 
            [style.filter]="selectedBtn.note && !transparent.note ? 'brightness(1.2)' : ''" alt="">
     </span>
-    <label [ngClass]="{'font-bold': selectedBtn.note && !transparent.note}">Note</label>
+    <label [ngClass]="{'font-bold': selectedBtn.note && !transparent.note}">Mémos</label>
   </div>
 </div>
 
@@ -324,7 +324,7 @@
     <!-- ------------------------ models ---------------------- -->
     <!-- menu -->
     <app-menu *ngIf="displayer.menuDisplay" [timer]="positionTimer" [markertimer]="MarkerTimer"
-      [menuDisplay]="displayer.menuDisplay" (closeMenu)="displayToggle('menu')" (openNotesList)="openNotesOverlay()"
+      [menuDisplay]="displayer.menuDisplay" (closeMenu)="displayToggle('menu')" (openNotesList)="openMemosOverlay()"
       (removeAllMarkers)="removeAllMarkers()"></app-menu>
     <!-- end menu -->
     <app-affluence *ngIf="displayer.affluenceDisplay" [affluenceDisplay]="displayer.affluenceDisplay"
@@ -367,9 +367,9 @@
     </div>
 
     <!-- Note Overlay - Notebook Style UI -->
-    <div *ngIf="displayer.noteOverlayDisplay" class="note-overlay-container">
+    <div *ngIf="displayer.memoOverlayDisplay" class="note-overlay-container">
       <!-- Background overlay -->
-      <div class="note-overlay-backdrop" (click)="closeNoteOverlay()"></div>
+      <div class="note-overlay-backdrop" (click)="closeMemosOverlay()"></div>
       
       <!-- Notebook UI -->
       <div class="notebook-container">
@@ -381,8 +381,8 @@
             <div class="ring"></div>
             <div class="ring"></div>
           </div>
-          <h3 class="notebook-title">📔 Mon Mémo</h3>
-          <button class="close-notebook-btn" (click)="closeNoteOverlay()">
+          <h3 class="notebook-title">📔 Mes Mémos</h3>
+          <button class="close-notebook-btn" (click)="closeMemosOverlay()">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -440,11 +440,11 @@
 
           <!-- Add new note button -->
           <div class="add-note-section">
-            <button class="add-note-btn" (click)="displayToggle('note'); closeNoteOverlay()">
+            <button class="add-note-btn" (click)="displayToggle('note'); closeMemosOverlay()">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
               </svg>
-              Ajouter une nouvelle note
+              Ajouter un nouveau mémo
             </button>
           </div>
         </div>

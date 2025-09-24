@@ -84,4 +84,6 @@
           Route::get('/{station_point_id}/positions', [QueueController::class, 'getPositions']);
           Route::post('/{station_point_id}/leave', [QueueController::class, 'leaveQueue']);
       });
+
+      Route::post('/logout', logout::class);
   });

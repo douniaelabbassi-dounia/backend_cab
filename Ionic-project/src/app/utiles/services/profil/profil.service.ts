@@ -94,7 +94,7 @@ export class ProfilService {
   $logout(){
     this.$inicializeToken()
     localStorage.setItem('hasRedirected', 'false');
-    return this.http.get(this.UrlLogout, {headers: this.$Authorization});
+    return this.http.post(this.UrlLogout, {}, {headers: this.$Authorization});
   }
 
   $register(data:any){

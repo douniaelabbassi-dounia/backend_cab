@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <widget id="com.soorcin.cabsul" version="0.0.1" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
-    <name>CABSUL</name>
+    <name>cabsul-23/09</name>
     <description>CABSUL application.</description>
     <author email="fadliayman10@gmail.com" href="http://soorcin.com/">SOORCIN Team</author>
     <content src="index.html" />

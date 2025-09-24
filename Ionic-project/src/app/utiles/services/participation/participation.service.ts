@@ -1,6 +1,5 @@
 import { Injectable } from '@angular/core';
 import { ApiService } from '../../../services/api.service';
-import { ProfilService } from '../profil/profil.service';
 import { Observable, BehaviorSubject } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
 
@@ -15,45 +14,73 @@ export class ParticipationService {
   private pointsSubject = new BehaviorSubject<number>(0);
   public points$ = this.pointsSubject.asObservable();
 
-  constructor(private apiService: ApiService, private profilService: ProfilService) {}
+  constructor(private apiService: ApiService) {}
 
   setUserId(userId: string) {
     this.currentUserId = userId;
     this.loadUserParticipation(userId);
   }
 
-  private checkDailyReduction() {
-    if (this.currentUserId) {
+  private checkDailyReduction(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      if (!this.currentUserId) {
+        return resolve(0);
+      }
       this.apiService.processDailyReduction(this.currentUserId).subscribe({
-        next: (response: any) => {
-          this.pointsSubject.next(response.currentPoints);
-        },
+        next: (response: any) => resolve(response.currentPoints),
         error: (error) => {
           console.error('Failed to process daily reduction:', error);
-          this.pointsSubject.next(0);
+          resolve(0);
         }
       });
-    }
+    });
   }
 
   getCurrentPoints(): number {
     return this.pointsSubject.value;
   }
 
+  // Force a fresh fetch from backend and update the observable once
+  public refresh(): void {
+    if (!this.currentUserId) { return; }
+    this.apiService.getUserParticipation(this.currentUserId).subscribe({
+      next: (res: any) => {
+        const pts = (res && typeof res.currentPoints === 'number') ? res.currentPoints : 0;
+        this.pointsSubject.next(pts);
+      },
+      error: (error) => {
+        console.error('Failed to refresh participation via API:', error);
+      }
+    });
+  }
+
   private loadUserParticipation(userId: string) {
-    // Use existing profile endpoint that now includes participation data
-    this.profilService.$profil().subscribe({
-      next: (response: any) => {
-        console.log('Profile response with participation:', response);
-        if (response.participation_score !== undefined) {
-          this.pointsSubject.next(response.participation_score);
-          this.checkDailyReduction();
-        } else {
-          this.initializeUserOnBackend(userId);
+    // Authoritative: use participation API only to avoid flicker from stale profile field.
+    this.apiService.getUserParticipation(userId).subscribe({
+      next: async (res: any) => {
+        try {
+          if (!res || res.exists === false) {
+            // Initialize once on backend
+            this.apiService.initializeUserParticipation(userId).subscribe({
+              next: (init: any) => this.pointsSubject.next(init.currentPoints ?? 0),
+              error: (e) => {
+                console.error('Failed to initialize user on backend:', e);
+                this.pointsSubject.next(0);
+              }
+            });
+            return;
+          }
+
+          // Process daily reduction then emit a single, final value
+          const finalPoints = await this.checkDailyReduction();
+          this.pointsSubject.next(finalPoints || res.currentPoints || 0);
+        } catch (err) {
+          console.error('Error during participation load sequence:', err);
+          this.pointsSubject.next(res?.currentPoints ?? 0);
         }
       },
       error: (error) => {
-        console.error('Failed to load participation from profile:', error);
+        console.error('Failed to load participation via API:', error);
         this.pointsSubject.next(0);
       }
     });

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\ParticipationService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 
 class PointController extends Controller
@@ -26,8 +27,12 @@ class PointController extends Controller
 
     function newPoint(Request $request) {
         date_default_timezone_set('Europe/Paris');
+        $point = null; $otherpoint = null; $check = '';
         try {
             $user = auth()->user();
+
+            DB::beginTransaction();
+
             $point = new Point();
             $point->name = $request->name;
             $point->address = $request->address;
@@ -36,17 +41,19 @@ class PointController extends Controller
             $point->userID = $user->id;
             $point->typePoint = $request->typePoint;
             $point->save();
-            $check = '';
+
             if($request->typePoint == 'red'){
                 $otherpoint = new AffluencePoint();
                 $otherpoint->pointId = $point->id;
+                if ($request->has('level')) {
+                    $otherpoint->level = $request->level;
+                }
                 $check = 'red';
-                $this->participationService->addPointsForAffluence($user, $request->level);
             }
             if($request->typePoint == 'green'){
                 $otherpoint = new StationPoint();
                 $otherpoint->pointId = $point->id;
-                $otherpoint->level = $request->level;
+                if ($request->has('level')) { $otherpoint->level = $request->level; }
                 $otherpoint->name = $request->name;
                 $otherpoint->lieu = $request->lieu;
                 $otherpoint->type = $request->type;
@@ -54,7 +61,6 @@ class PointController extends Controller
                 $otherpoint->heureDebut = $request->heureDebut;
                 $otherpoint->heureFin = $request->heureFin;
                 $check = 'green';
-                $this.participationService->addPointsForStation($user);
             }
             if($request->typePoint == 'jaune'){
                 $otherpoint = new JaunePoint();
@@ -65,15 +71,14 @@ class PointController extends Controller
                 $check = 'jaune';
                 $user->pointDuration+=10;
             }
-            else if ($request->typePoint == 'note') { // Use else if to separate logic
+            else if ($request->typePoint == 'note') {
                 $otherpoint = new NotePoint();
                 $otherpoint->pointId = $point->id;
-                $otherpoint->name = $request->destination; // Use 'destination' from frontend
+                $otherpoint->name = $request->destination;
                 $otherpoint->lieu = $request->lieu;
                 $otherpoint->type = $request->type;
-                // Ensure selectedDays is treated as an array before imploding
                 $selectedDays = is_array($request->selectedDays) ? $request->selectedDays : [$request->selectedDays];
-                $otherpoint->dates = implode(",", $selectedDays); // Store days as comma-separated string
+                $otherpoint->dates = implode(",", $selectedDays);
                 $otherpoint->heureDebut = $request->heureDebut;
                 $check = 'note';
                 $user->pointDuration+=10;
@@ -85,33 +90,50 @@ class PointController extends Controller
                 $otherpoint->dates = $request->date;
                 $otherpoint->heureDebut = $request->heureDebut;
                 $otherpoint->heureFin = $request->heureFin;
+                $otherpoint->level = ($request->has('level') && $request->level !== null && $request->level !== '') ? $request->level : '1';
                 $check = 'event';
-                $this->participationService->addPointsForEvent($user);
             }
-            if (isset($otherpoint)) {
-                if ($request->has('level')) {
-                    $otherpoint->level = $request->level;
+
+            if (isset($otherpoint)) { $otherpoint->save(); }
+
+            DB::commit();
+
+            // Award points after commit to avoid nested transaction conflicts
+            try {
+                switch ($request->typePoint) {
+                    case 'red':
+                        if ($request->has('level')) {
+                            $this->participationService->addPointsForAffluence($user, $request->level);
+                        }
+                        break;
+                    case 'green':
+                        $this->participationService->addPointsForStation($user);
+                        break;
+                    case 'event':
+                        $this->participationService->addPointsForEvent($user);
+                        break;
                 }
-                $otherpoint->save();
+            } catch (\Exception $awardEx) {
+                \Log::warning('Participation award failed after point creation: ' . $awardEx->getMessage());
             }
-    
+
             // Fetch the newly created point with all its relations
             $newPoint = Point::where('id', $point->id)
                             ->with(['user.role', 'affluence', 'event', 'station', 'note', 'feedback', 'sos'])
                             ->first();
-    
-            // Process the new point to get the formatted data
+
             $processedPoint = $this->processPoints([$newPoint]);
-    
+
             return response()->json([
                 'done' => true,
                 'point' => $processedPoint,
                 'type' => $check
             ], 201);
-    
+
         } catch (\Exception $e) {
+            DB::rollBack();
             if(isset($point)){
-                $point->forceDelete();
+                try { $point->forceDelete(); } catch (\Exception $ignored) {}
             }
             return response()->json(['done' => false, 'message' => 'error from server :  '. $e->getMessage()], 500);
         }
@@ -134,14 +156,24 @@ class PointController extends Controller
                     // BUG FIX: Per client request, show ALL events regardless of their start/end time.
                     if ($el->event) {
                         array_push($eventPoint, [
-                            "id" => $el->id, "lieu" => $el->event->lieu, "type" => $el->event->type, "date" => $el->event->dates, "heureDebut" => $el->event->heureDebut, "heureFin" => $el->event->heureFin, "level" => $el->event->level, "name" => $el->name, "address" => $el->address, "lat" =>  $el->lat, "lng" =>  $el->lng, "userId" =>  $el->user->id, "username" =>  $el->user->firstName . " " . $el->user->lastName, "like" => $likes, "dislike" => $dislikes, "object" =>  null, "role" =>  $el->user->role->role_name, "created_at" => $el->created_at->toIso8601String()
+                            "id" => $el->id, "lieu" => $el->event->lieu, "type" => $el->event->type, "date" => $el->event->dates, "heureDebut" => $el->event->heureDebut, "heureFin" => $el->event->heureFin, "level" => $el->event->level, "name" => $el->name, "address" => $el->address, "lat" =>  $el->lat, "lng" =>  $el->lng,
+                            "userId" => $el->user ? $el->user->id : null,
+                            "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
+                            "like" => $likes, "dislike" => $dislikes, "object" =>  null,
+                            "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
+                            "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
                         ]);
                     }
                     break;
                 case 'note':
                     if ($el->note) {
                         array_push($notePoint, [
-                            "id" => $el->id, "lieu" => $el->note->lieu, "type" => $el->note->type, "date" => $el->note->dates, "heureDebut" => $el->note->heureDebut, "level" => $el->note->level, "name" => $el->note->name, "lat" =>  $el->lat, "lng" =>  $el->lng, "userId" =>  $el->user->id, "username" =>  $el->user->firstName . " " . $el->user->lastName, "like" => $likes, "dislike" => $dislikes, "object" =>  null, "role" =>  $el->user->role->role_name, "created_at" => $el->created_at->toIso8601String()
+                            "id" => $el->id, "lieu" => $el->note->lieu, "type" => $el->note->type, "date" => $el->note->dates, "heureDebut" => $el->note->heureDebut, "level" => $el->note->level, "name" => $el->note->name, "lat" =>  $el->lat, "lng" =>  $el->lng,
+                            "userId" => $el->user ? $el->user->id : null,
+                            "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
+                            "like" => $likes, "dislike" => $dislikes, "object" =>  null,
+                            "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
+                            "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
                         ]);
                     }
                     break;
@@ -149,12 +181,14 @@ class PointController extends Controller
                     if ($el->station) {
                         array_push($stationPoint, [
                             "id" => $el->id, "name" => $el->name, "address" => $el->address,
-                            "lat" =>  $el->lat, "lng" =>  $el->lng, "userId" =>  $el->user->id,
-                            "username" =>  $el->user->firstName . " " . $el->user->lastName,
+                            "lat" =>  $el->lat, "lng" =>  $el->lng,
+                            "userId" => $el->user ? $el->user->id : null,
+                            "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
                             "level" => $el->station->level, "like" => $likes, "dislike" => $dislikes,
                             "polyline" => $el->station->polyline,
-                            "object" =>  null, "role" =>  $el->user->role->role_name,
-                            "created_at" => $el->created_at->toIso8601String()
+                            "object" =>  null,
+                            "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
+                            "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
                         ]);
                     }
                     break;
@@ -163,11 +197,13 @@ class PointController extends Controller
                         array_push($jaunePoint, [
                             "id" => $el->id, "name" => $el->name, "address" => $el->address,
                             "msg" => $el->sos->msg, "numeroTel" => $el->sos->numeroTel,
-                            "lat" => $el->lat, "lng" => $el->lng, "userId" => $el->user->id,
-                            "username" => $el->user->firstName . " " . $el->user->lastName,
+                            "lat" => $el->lat, "lng" => $el->lng,
+                            "userId" => $el->user ? $el->user->id : null,
+                            "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
                             "level" => $el->sos->level ?? null, "like" => $likes, "dislike" => $dislikes,
-                            "object" => null, "role" =>  $el->user->role->role_name,
-                            "created_at" => $el->created_at->toIso8601String()
+                            "object" => null,
+                            "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
+                            "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
                         ]);
                     }
                     break;
@@ -175,11 +211,13 @@ class PointController extends Controller
                     if ($el->affluence) {
                         array_push($redPoint, [
                             "id" => $el->id, "name" => $el->name, "address" => $el->address,
-                            "lat" =>  $el->lat, "lng" =>  $el->lng, "userId" =>  $el->user->id,
-                            "username" =>  $el->user->firstName . " " . $el->user->lastName,
+                            "lat" =>  $el->lat, "lng" =>  $el->lng,
+                            "userId" => $el->user ? $el->user->id : null,
+                            "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
                             "level" => $el->affluence->level, "like" => $likes, "dislike" => $dislikes,
-                            "object" =>  null, "role" =>  $el->user->role->role_name,
-                            "created_at" => $el->created_at->toIso8601String()
+                            "object" =>  null,
+                            "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
+                            "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
                         ]);
                     }
                     break;
@@ -234,6 +272,9 @@ class PointController extends Controller
             switch($request->type) {
                 case 'event':
                     $point = Point::where('id', $request->pointId)->with(['event'])->first();
+                    if (!$point || !$point->event) {
+                        return response()->json(['success' => false, 'message' => 'Point ou détail de l\'événement introuvable.'], 404);
+                    }
                     $relatedPoint = $point->event;
                     $relatedPoint->lieu = $request->lieu;
                     $relatedPoint->type = $request->type;
@@ -244,12 +285,18 @@ class PointController extends Controller
 
                 case 'red':
                     $point = Point::where('id', $request->pointId)->with(['affluence'])->first();
+                    if (!$point || !$point->affluence) {
+                        return response()->json(['success' => false, 'message' => 'Point ou détail d\'affluence introuvable.'], 404);
+                    }
                     $relatedPoint = $point->affluence;
                     $relatedPoint->level = $request->level;
                     break;
 
                 case 'green':
                     $point = Point::where('id', $request->pointId)->with(['station'])->first();
+                    if (!$point || !$point->station) {
+                        return response()->json(['success' => false, 'message' => 'Point ou détail de station introuvable.'], 404);
+                    }
                     $relatedPoint = $point->station;
                     $relatedPoint->level = $request->level;
                     $relatedPoint->name = $request->name;
@@ -265,8 +312,10 @@ class PointController extends Controller
 
                 case 'jaune':
                     $point = Point::where('id', $request->pointId)->with(['sos'])->first();
+                    if (!$point || !$point->sos) {
+                        return response()->json(['success' => false, 'message' => 'Point ou détail SOS introuvable.'], 404);
+                    }
                     $relatedPoint = $point->sos;
-                    // $relatedPoint->name = $request->name;
                     $relatedPoint->msg = $request->msg;
                     $relatedPoint->numeroTel = $request->numeroTel;
                     $relatedPoint->type = $request->type;
@@ -275,6 +324,9 @@ class PointController extends Controller
 
                 case 'note':
                     $point = Point::where('id', $request->pointId)->with(['note'])->first();
+                    if (!$point || !$point->note) {
+                        return response()->json(['success' => false, 'message' => 'Point ou détail de note introuvable.'], 404);
+                    }
                     $relatedPoint = $point->note;
                     $relatedPoint->name = $request->name;
                     $relatedPoint->lieu = $request->lieu;
@@ -312,6 +364,7 @@ class PointController extends Controller
 
             $point->save();
             $relatedPoint->save();
+            $point->touch();
 
             return response()->json([
                 'success' => true,
@@ -329,11 +382,13 @@ class PointController extends Controller
     function updateLvlPoint(Request $request) {
         try {
             $point = Point::where('id', $request->pointId)->with(['affluence'])->first();
-
-            $affluence = AffluencePoint::where('id', $point->affluence->id)->first();
+            if (!$point || !$point->affluence) {
+                return response()->json(['data' => false, 'message' => 'Point ou détail d\'affluence introuvable.'], 404);
+            }
+            $affluence = $point->affluence;
             $affluence->level = $request->level;
-            $affluence->timestamps = false;
             $affluence->save();
+            $point->touch();
 
             return response()->json(['data' => $affluence, 'message' => 'le niveau a ete modifier'], 200);
         } catch (\Exception $e) {
@@ -346,39 +401,55 @@ class PointController extends Controller
         switch($request->type) {
             case "event":
                 $point = Point::where('id', $request->pointId)->with(['event', 'user'])->first();
-                $this->participationService->deductPointsForDeletion($point->user, 'event');
-                $event = EventPoint::where('id', $point->event->id)->first();
-                $event->delete();
+                if (!$point) { return response()->json(['data' => false, 'message' => 'Point introuvable.'], 404); }
+                if ($point->user) {
+                    $this->participationService->deductPointsForDeletion($point->user, 'event');
+                }
+                if ($point->event) {
+                    $point->event->delete();
+                }
                 $point->delete();
                 break;
 
             case "red":
                 $point = Point::where('id', $request->pointId)->with(['affluence', 'user'])->first();
-                $this->participationService->deductPointsForDeletion($point->user, 'red', $point->affluence->level);
-                $affluence = AffluencePoint::where('id', $point->affluence->id)->first();
-                $affluence->delete();
+                if (!$point) { return response()->json(['data' => false, 'message' => 'Point introuvable.'], 404); }
+                if ($point->user && $point->affluence) {
+                    $this->participationService->deductPointsForDeletion($point->user, 'red', $point->affluence->level);
+                }
+                if ($point->affluence) {
+                    $point->affluence->delete();
+                }
                 $point->delete();
                 break;
 
             case "green":
                 $point = Point::where('id', $request->pointId)->with(['station', 'user'])->first();
-                $this->participationService->deductPointsForDeletion($point->user, 'green');
-                $station = StationPoint::where('id', $point->station->id)->first();
-                $station->delete();
+                if (!$point) { return response()->json(['data' => false, 'message' => 'Point introuvable.'], 404); }
+                if ($point->user) {
+                    $this->participationService->deductPointsForDeletion($point->user, 'green');
+                }
+                if ($point->station) {
+                    $point->station->delete();
+                }
                 $point->delete();
                 break;
 
             case "jaune":
-                $point = Point::where('id', $request->pointId)->with(['sos'])->first(); // Changed from 'jaune' to 'sos'
-                $sos = JaunePoint::where('id', $point->sos->id)->first();
-                $sos->delete();
+                $point = Point::where('id', $request->pointId)->with(['sos'])->first();
+                if (!$point) { return response()->json(['data' => false, 'message' => 'Point introuvable.'], 404); }
+                if ($point->sos) {
+                    $point->sos->delete();
+                }
                 $point->delete();
                 break;
 
             case "note":
                 $point = Point::where('id', $request->pointId)->with(['note'])->first();
-                $note = NotePoint::where('id', $point->note->id)->first();
-                $note->delete();
+                if (!$point) { return response()->json(['data' => false, 'message' => 'Point introuvable.'], 404); }
+                if ($point->note) {
+                    $point->note->delete();
+                }
                 $point->delete();
                 break;
 
@@ -405,6 +476,9 @@ class PointController extends Controller
         try {
             $userGivingFeedback = auth()->user();
             $point = Point::where('id', $request->pointId)->with('feedback')->first();
+            if (!$point) {
+                return response()->json(['data' => false, 'message' => 'Point introuvable.'], 404);
+            }
             $dislikes = 0;
 
             foreach($point->feedback as $feedbackItemd){
@@ -413,10 +487,10 @@ class PointController extends Controller
                 }
             }
 
-            $user = User::where('id', $point->userID)->get();
+            $user = User::find($point->userID);
 
-            if(count($user) == 0){
-                return response()->json(['data' => false, 'message' => 'l\'utilisateur qui a créé ce point n\'est pas disponible'], 404);
+            if(!$user){
+                return response()->json(['data' => false, 'message' => 'L\'utilisateur qui a créé ce point n\'est plus disponible.'], 404);
             }
             $feedback = PointFeedback::where("pointId", $point->id)->where('userId', $userGivingFeedback->id)->first();
 
@@ -424,11 +498,11 @@ class PointController extends Controller
                 if($feedback->feedback == 'like' && $request->feedback == 'like'){
                     $feedback->delete();
                     $point->like -= 1;
-                    $user[0]->likes -= 1;
+                    $user->likes -= 1;
                 }else if($feedback->feedback == 'dislike' && $request->feedback == 'dislike'){
                     $feedback->delete();
                     $point->dislike -= 1;
-                    $user[0]->dislikes -= 1;
+                    $user->dislikes -= 1;
                 }else if($feedback->feedback == 'like' && $request->feedback == 'dislike'){
                     $dislikes += 1;
                     if($dislikes >= 2 ){
@@ -440,15 +514,15 @@ class PointController extends Controller
                         $point->dislike += 1;
                         $point->like = $point->like - 1 >= 0? $point->like - 1 : 0;
                     }
-                        $user[0]->dislikes += 1;
-                        $user[0]->likes = $user[0]->like - 1 >= 0? $user[0]->like - 1 : 0;
+                        $user->dislikes += 1;
+                        $user->likes = $user->like - 1 >= 0? $user->like - 1 : 0;
                 }else if($feedback->feedback == 'dislike' && $request->feedback == 'like'){
                         $feedback->feedback = 'like';
                         $feedback->save();
                         $point->dislike += 1;
-                        $user[0]->dislikes += 1;
+                        $user->dislikes += 1;
                         $point->like -= 1;
-                        $user[0]->likes -= 1;
+                        $user->likes -= 1;
                 }
             }else {
                 $newFeedback = new PointFeedback();
@@ -460,24 +534,30 @@ class PointController extends Controller
                 if($request->feedback == 'like'){
                     $this->participationService->addPointsForLike($userGivingFeedback);
                     $point->like += 1;
-                    $user[0]->likes += 1;
+                    $user->likes += 1;
                 }else if($request->feedback == 'dislike'){
-                    $pointToPenalize = Point::with('user', 'affluence')->find($request->pointId);
-                    if (
-                        $pointToPenalize &&
-                        $pointToPenalize->typePoint == 'red' &&
-                        in_array($pointToPenalize->affluence->level, [3, 4]) &&
-                        now()->diffInMinutes($pointToPenalize->created_at) < 5 &&
-                        $userGivingFeedback->id !== $pointToPenalize->user->id
-                    ) {
-                        $this->participationService->deductPointsForFalseReport($pointToPenalize->user);
-                    }
-
                     $point->dislike += 1;
-                    $user[0]->likes += 1;
+                    $user->dislikes += 1; // Bug fix: was likes
+
+                    // False report penalty logic
+                    $point->load(['user', 'affluence', 'feedback']);
+                    $isEligibleForPenalty = $point->user && $point->typePoint == 'red' && $point->affluence &&
+                        in_array($point->affluence->level, [3, 4]) &&
+                        now()->diffInMinutes($point->created_at) < 5;
+
+                    if ($isEligibleForPenalty) {
+                        $dislikeCount = $point->feedback
+                            ->where('feedback', 'dislike')
+                            ->where('userId', '!=', $point->user->id)
+                            ->count();
+                        
+                        if ($dislikeCount >= 2) {
+                           $this->participationService->deductPointsForFalseReport($point->user);
+                        }
+                    }
                 }
             }
-            $user[0]->save();
+            $user->save();
             $point->save();
             return response()->json(['data' => true, 'message' => 'votre avis a été envoyé avec succès'], 200);
         } catch (\Exception $e) {

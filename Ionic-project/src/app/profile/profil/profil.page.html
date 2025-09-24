@@ -16,15 +16,17 @@
       </div>
       <!-- End Header -->
 
-      <!-- Profile Info -->
-      <div class="w-full">
+      <!-- Main Content Wrapper -->
+      <!-- THIS IS THE MAIN FIX: We wrap everything in *ngIf="profilInfo" -->
+      <div *ngIf="profilInfo" class="w-full">
+        
         <!-- Profile Picture -->
         <div class="mt-1 w-full">
           <label class="montserrat-600 text-[13px]">Photo de profil</label>
           <div class="mt-1 flex items-center">
             <div class="w-[18vw]">
               <img class="rounded-2xl"
-                [src]="profilInfo?.image?.url ? URL + 'storage/' + profilInfo?.image?.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
+                [src]="profilInfo.image?.url ? URL + 'storage/' + profilInfo.image.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
             </div>
             <div class="px-3">
               <div>
@@ -50,30 +52,30 @@
           <table class="text-[13px] border-separate border-spacing-y-2">
             <tr>
               <td class="montserrat-500 pr-5">Compte</td>
-              <td *ngIf="profilInfo?.isSubscribe === 1" class="py-[1px] pl-1 montserrat-700">PREMIUM</td>
-              <td *ngIf="profilInfo?.isSubscribe === 0" class="py-[1px] pl-1 montserrat-700">FREE</td>
+              <td *ngIf="profilInfo.isSubscribe === 1" class="py-[1px] pl-1 montserrat-700">PREMIUM</td>
+              <td *ngIf="profilInfo.isSubscribe === 0" class="py-[1px] pl-1 montserrat-700">FREE</td>
             </tr>
             <tr>
               <td class="montserrat-500 pr-5">ID</td>
-              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.id }}</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo.id }}</td>
             </tr>
 
             <!-- Chauffeur Specific Info -->
-            <tr *ngIf="profilInfo?.role.role_name === 'chauffeur'">
+            <tr *ngIf="profilInfo.role.role_name === 'chauffeur' && profilInfo.chauffeur">
               <td class="montserrat-500 pr-5">Pseudo</td>
-              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.pseudo }}</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo.chauffeur.pseudo }}</td>
             </tr>
-            <tr *ngIf="profilInfo?.role.role_name !== 'organisateur'">
+            <tr *ngIf="profilInfo.role.role_name !== 'organisateur' && profilInfo.chauffeur">
               <td class="montserrat-500 pr-5">Véhicule</td>
-              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.carBrind }}</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo.chauffeur.carBrind }}</td>
             </tr>
-            <tr *ngIf="profilInfo?.role.role_name !== 'organisateur'">
+            <tr *ngIf="profilInfo.role.role_name !== 'organisateur' && profilInfo.chauffeur">
               <td class="montserrat-500 pr-5">Catégorie</td>
-              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.categorie }}</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo.chauffeur.categorie }}</td>
             </tr>
-            <tr *ngIf="profilInfo?.role.role_name !== 'organisateur'">
+            <tr *ngIf="profilInfo.role.role_name !== 'organisateur' && profilInfo.chauffeur">
               <td class="montserrat-500 pr-5">N° carte</td>
-              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo?.chauffeur.numCardPro }}</td>
+              <td class="py-[1px] pl-1 montserrat-700">{{ profilInfo.chauffeur.numCardPro }}</td>
             </tr>
           </table>
         </div>
@@ -112,11 +114,11 @@
           <div class="flex py-3">
             <div class="flex items-center px-2">
               <img class="pr-2" src="../../assets/icon/thumRed.svg" alt="" (click)="dislike()">
-              <span class="text-[#02263D] Montserrat-900">{{ profilInfo?.dislikes }}</span>
+              <span class="text-[#02263D] Montserrat-900">{{ profilInfo.dislikes }}</span>
             </div>
             <div class="flex items-center px-2">
               <img class="pr-2" src="../../assets/icon/thumGreen.svg" alt="" (click)="like()">
-              <span class="text-[#02263D] Montserrat-900">{{ profilInfo?.likes }}</span>
+              <span class="text-[#02263D] Montserrat-900">{{ profilInfo.likes }}</span>
             </div>
           </div>
         </div>
@@ -124,19 +126,48 @@
 
         <!-- Participation -->
         <hr />
-        <div class="my-4">
-          <label class="montserrat-500">Participation ({{currentParticipationPoints}}/50 points)</label>
-          <div class="w-full bg-[#D9D9D9] h-3 rounded-full mt-3">
-            <div #progressBar class="py-1.5 bg-gradient-to-r from-[#EB2F06] to-[#06FF3D] rounded-full"
-              [style.width.%]="participationProgress"></div>
-          </div>
-          <div *ngIf="participationProgress === 0" class="text-red-600 mt-2">
-            Vous devez participer pour continuer à utiliser les fonctionnalités.
-          </div>
-          <div *ngIf="participationProgress > 0" class="text-green-600 mt-2 text-sm">
-            Points perdus quotidiennement. Participez pour en gagner !
-          </div>
-        </div>
+        <ion-card class="mx-0 my-4 shadow-none bg-transparent">
+            <ion-card-header class="ion-no-padding pb-2">
+              <ion-card-title class="text-base font-bold flex items-center montserrat-500">
+                Niveau de Participation
+              </ion-card-title>
+            </ion-card-header>
+          
+            <ion-card-content class="ion-no-padding">
+              <!-- Shimmer skeleton while loading -->
+              <div *ngIf="isLoadingParticipation" class="py-4">
+                <div class="flex justify-between items-center mb-2">
+                  <div class="skeleton skeleton-text w-24 h-4"></div>
+                  <div class="skeleton skeleton-text w-20 h-4"></div>
+                </div>
+                <div class="skeleton skeleton-bar h-2.5 w-full"></div>
+                <div class="skeleton skeleton-text w-40 h-3 mt-3"></div>
+              </div>
+
+              <!-- Real content after load -->
+              <div *ngIf="!isLoadingParticipation">
+                <div class="flex justify-between items-center mb-1">
+                  <p class="text-sm text-gray-600">Votre score</p>
+                  <p class="text-sm font-bold text-gray-800">
+                    {{ currentPoints }} / {{ maxPoints }} Pts
+                  </p>
+                </div>
+
+                <div class="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                  <div class="bg-gradient-to-r from-[#EB2F06] via-[#e2c12b] to-[#06FF3D] h-2.5 rounded-full transition-all duration-700 ease-out"
+                       [style.width.%]="participationPercentage">
+                  </div>
+                </div>
+
+                <p *ngIf="currentPoints > 0" class="text-xs text-gray-500 mt-3">
+                  Points perdus quotidiennement. Participez pour en gagner !
+                </p>
+                <p *ngIf="currentPoints === 0" class="text-xs text-red-600 mt-3">
+                  Vous devez participer pour continuer à utiliser les fonctionnalités.
+                </p>
+              </div>
+            </ion-card-content>
+        </ion-card>
         <!-- End Participation -->
 
         <!-- Buttons -->
@@ -145,6 +176,12 @@
             class="h-[40px] w-full rounded-xl border-2 bg-[#1D4999] active:bg-transparent border-[#1D4999] text-[13px] montserrat-700 tracking-wide text-white active:text-[#1D4999]">Modifier</ion-button>
         </div>
       </div>
+
+       <!-- Loading Spinner for main profile data -->
+      <div *ngIf="!profilInfo" class="flex justify-center items-center h-40">
+        <ion-spinner name="crescent"></ion-spinner>
+      </div>
+
     </div>
 
     <app-image-source-modal *ngIf="sourceModal" (choice)="choiceMethod($event)"

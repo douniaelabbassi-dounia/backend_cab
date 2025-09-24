@@ -39,14 +39,17 @@ class AirportController extends Controller
             return response()->json(['errors' => $validator->errors()], 400);
         }
         
-        // Combine Orly-specific fields back into nbFile if they exist
-        if ($request->has('nbGrandeFile') || $request->has('nbPetiteFile')) {
-            $airport->nbGrandeFile = $request->input('nbGrandeFile', $airport->nbGrandeFile);
-            $airport->nbPetiteFile = $request->input('nbPetiteFile', $airport->nbPetiteFile);
-            // We construct the display string for nbFile for consistency, even if not used by Orly's UI
-            $airport->nbFile = $airport->nbGrandeFile . ' et ' . $airport->nbPetiteFile;
-        } else if ($request->has('nbFile')) {
-             $airport->nbFile = $request->input('nbFile');
+        // Only apply Orly-specific logic if the airport is Orly
+        if ($airport->abbreviation === 'ORLY') {
+            if ($request->has('nbGrandeFile') || $request->has('nbPetiteFile')) {
+                $airport->nbGrandeFile = $request->input('nbGrandeFile', $airport->nbGrandeFile);
+                $airport->nbPetiteFile = $request->input('nbPetiteFile', $airport->nbPetiteFile);
+                $airport->nbFile = $airport->nbGrandeFile . ' et ' . $airport->nbPetiteFile;
+            }
+        }
+        // For all other airports (including CDG), update nbFile directly
+        else if ($request->has('nbFile')) {
+            $airport->nbFile = $request->input('nbFile');
         }
 
         if ($request->has('nbVan')) {

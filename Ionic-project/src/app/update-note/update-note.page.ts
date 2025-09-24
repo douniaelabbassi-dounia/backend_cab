@@ -100,14 +100,26 @@ export class UpdateNotePage implements OnInit {
           this.heureDebut = notePoint.heureDebut || '00:00';
           this.Type = notePoint.type || ''
           this.destination = notePoint.name || ''
+          this.selectedposition = {
+            name: notePoint.name,
+            display_name: notePoint.lieu,
+            lat: notePoint.lat,
+            lon: notePoint.lng
+          };
+          this.isLocationValid = true;
           
-          const dayName = this.getDayOfWeek(notePoint.date || '');
+          // Reset all days first
+          this.dayList.forEach(d => d.activated = false);
+          this.selectedDays = [];
 
-          // Find the day in dayList and activate it
-          const selectedDay = this.dayList.find(d => d.name === dayName);
-          if (selectedDay) {
-            selectedDay.activated = true;
-          }
+          const storedDays = (notePoint.date || '').split(',');
+          storedDays.forEach((dayName: string) => {
+            const day = this.dayList.find(d => d.name === dayName.trim());
+            if (day) {
+              day.activated = true;
+              this.selectedDays.push(day.name);
+            }
+          });
           // console.log('Message :', this.message, 'Numéro de téléphone :', this.phoneNumber);
         } else {
           console.log('No note data found with the provided ID.');
@@ -119,23 +131,22 @@ export class UpdateNotePage implements OnInit {
   }
   
   updatePoint() {
-    let dateIn = new Date();
+    if (!this.isLocationValid) {
+      presentToast('Veuillez sélectionner un lieu valide dans la liste.', 'bottom', 'warning');
+      return;
+    }
+
     const content = {
       pointId: this.pointId,
+      type: 'note',
+      name: this.destination,
       lieu: this.lieu,
-      lat:this.selectedposition.lat,
-      lg:this.selectedposition.lon,
-      date:
-              dateIn.getDate() +
-              '-' +
-              dateIn.getMonth() +
-              '-' +
-              dateIn.getFullYear()
-              ,
+      date: this.selectedDays.join(','),
       heureDebut: this.heureDebut,
-      type: this.Type,
-      destination: this.destination,
-      friendsSelector: this.friendsSelector
+      // type: this.Type, // This was the duplicate
+      lat: this.selectedposition.lat,
+      lng: this.selectedposition.lon,
+      address: this.lieu,
     };
 
     console.log('Contenu mis à jour :', content);
@@ -154,12 +165,12 @@ export class UpdateNotePage implements OnInit {
       console.log("checked form : "+selectedday.name);
       this.checkOruncheck(selectedday.name)
 
-      this.selectedDays.push(selectedday);
+      this.selectedDays.push(selectedday.name);
 
     }else{
       console.log("uncheckedform : "+selectedday);
       this.checkOruncheck(selectedday.name)
-      this.selectedDays.splice(this.selectedDays.indexOf(selectedday),1)
+      this.selectedDays.splice(this.selectedDays.indexOf(selectedday.name),1)
     }
     console.log("list : "+ this.selectedDays);
   }

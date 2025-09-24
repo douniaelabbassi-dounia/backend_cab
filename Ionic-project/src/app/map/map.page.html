@@ -135,6 +135,12 @@
     <div #map id="map" class=" z-0 fixed" class="z-0 fixed w-[100vw] h-[100vh]"
       [style.visibility]="skipedPub === '1' ? 'visible' : 'hidden'"></div>
 
+<!-- ADD THIS CODE FOR THE SAVE BUTTON -->
+<ion-fab vertical="bottom" horizontal="center" slot="fixed" *ngIf="isDrawingPolyline">
+  <ion-fab-button (click)="finishPolylineDrawing()" color="success" size="small">
+    <ion-icon name="save-outline"></ion-icon>
+  </ion-fab-button>
+</ion-fab>
     <!-- end map -->
 
     <!-- buttons -->

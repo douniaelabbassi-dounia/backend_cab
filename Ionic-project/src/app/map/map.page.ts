@@ -12,6 +12,32 @@ import { QueueService, UserPosition } from '../utiles/services/queue/queue.servi
 import { Router } from '@angular/router';
 import { LongPressDirective } from '../utiles/directives/longpress/long-press.directive';
 
+interface Displayer {
+  menuDisplay: boolean;
+  horlogDisplay: boolean;
+  affluenceDisplay: boolean;
+  evenementsDisplay: boolean;
+  statusDisplay: boolean;
+  noteDisplay: boolean;
+  sosDisplay: boolean;
+  autreDisplay: boolean;
+  listPointDisplay: boolean;
+  onboarding: boolean;
+  showPub: boolean;
+  listPoints: boolean;
+  deletePointConfirmation: boolean;
+  memoOverlayDisplay: boolean;
+  editPointConfirmation: boolean;
+}
+
+interface PointCategoryState {
+  event: boolean;
+  affluence: boolean;
+  note: boolean;
+  autre: boolean;
+  sos: boolean;
+  station: boolean;
+}
 
 @Component({
   selector: 'app-map',
@@ -24,7 +50,6 @@ export class MapPage implements OnInit, OnDestroy {
 
   map!: L.Map | undefined;
   franceBounds!: L.LatLngBounds; // France mainland bounds
-  input: any;
   checker: boolean = true;
   searchinput: string = "";
   suggestions: Array<any> = [];
@@ -32,9 +57,7 @@ export class MapPage implements OnInit, OnDestroy {
 
   // enableAffect:boolean=false;
 
-  eventListenerToDelete: any;
-
-  grayMarker: any;
+  grayMarker: L.Marker | null = null;
   positionTimeout: any;  // Pour arrêter après 5 minutes
   positionUpdateInterval: any; // Pour mettre à jour toutes les X secondes
   markergray = false;
@@ -47,7 +70,7 @@ export class MapPage implements OnInit, OnDestroy {
   };
   showTimePickerModal: boolean = false;
   currentTime: string = "";
-  displayer: any = {
+  displayer: Displayer = {
     menuDisplay: false,
     horlogDisplay: false,
     affluenceDisplay: false,
@@ -124,7 +147,7 @@ export class MapPage implements OnInit, OnDestroy {
   };
   myPosition!: L.Marker | undefined;
 
-  selectedBtn: any = {
+  selectedBtn: PointCategoryState = {
     event: false,
     affluence: false,
     note: false,
@@ -133,7 +156,7 @@ export class MapPage implements OnInit, OnDestroy {
     station: false,
   };
 
-  transparent: any = {
+  transparent: PointCategoryState = {
     event: false,
     affluence: false,
     note: false,
@@ -487,30 +510,12 @@ export class MapPage implements OnInit, OnDestroy {
   }
 
 
-  dragStart = () => {
-    this.checker = false;
-
-    if (this.eventListenerToDelete) {
-      // This was for Google Maps, no longer needed.
-      this.eventListenerToDelete = undefined;
-    }
-  };
-
-  DragEnd = () => {
-    this.checker = true;
-
-  };
-
   deleteMap = () => {
     if (this.map) {
       this.map.remove();
       this.map = undefined;
     }
     document.getElementById('map')?.remove();
-  };
-
-  detectedEventListener = (evenement: any) => {
-    this.eventListenerToDelete = evenement;
   };
 
   /*USer Info */
@@ -704,7 +709,7 @@ export class MapPage implements OnInit, OnDestroy {
       sos: 'sos',
       note: 'note'
     };
-    const category = elementToCategoryMap[element];
+    const category = elementToCategoryMap[element] as keyof PointCategoryState;
     if (category && this.selectedBtn[category]) {
       this.selectedBtn[category] = false;
       this.transparent[category] = false;
@@ -907,30 +912,31 @@ export class MapPage implements OnInit, OnDestroy {
   }
 
   handlingLongClick(btn: string) {
+    const category = btn as keyof PointCategoryState;
     // If btn is invalid/empty, clear all filters safely and return
-    if (!btn || !Object.prototype.hasOwnProperty.call(this.selectedBtn, btn)) {
+    if (!category || !Object.prototype.hasOwnProperty.call(this.selectedBtn, category)) {
       Object.keys(this.selectedBtn).forEach(key => {
-        this.selectedBtn[key] = false;
-        this.transparent[key] = false;
+        this.selectedBtn[key as keyof PointCategoryState] = false;
+        this.transparent[key as keyof PointCategoryState] = false;
       });
       this.setMarkersOpacity();
       return;
     }
-    const isCurrentlySelected = this.selectedBtn[btn];
+    const isCurrentlySelected = this.selectedBtn[category];
 
     // If the button pressed is the one already active, we turn it off.
     if (isCurrentlySelected) {
-      this.selectedBtn[btn] = false;
-      this.transparent[btn] = false;
+      this.selectedBtn[category] = false;
+      this.transparent[category] = false;
     } else {
       // First, turn off all other filters.
       Object.keys(this.selectedBtn).forEach(key => {
-        this.selectedBtn[key] = false;
-        this.transparent[key] = false;
+        this.selectedBtn[key as keyof PointCategoryState] = false;
+        this.transparent[key as keyof PointCategoryState] = false;
       });
       // Then, turn on the new one.
-      this.selectedBtn[btn] = true;
-      this.transparent[btn] = true;
+      this.selectedBtn[category] = true;
+      this.transparent[category] = true;
     }
 
     // --- THIS IS THE FIX ---
@@ -949,7 +955,7 @@ export class MapPage implements OnInit, OnDestroy {
   }
 
   // Explicit helper used by overlay clicks to clear the long-press state
-  clearLongPress(category: string) {
+  clearLongPress(category: keyof PointCategoryState) {
     if (!category) return;
     if (Object.prototype.hasOwnProperty.call(this.selectedBtn, category)) {
       this.selectedBtn[category] = false;
@@ -991,7 +997,7 @@ export class MapPage implements OnInit, OnDestroy {
 
     // Exactly one button is made active by handlingLongClick; enforce visibility accordingly
     markerCategories.forEach(({ markers, category }) => {
-      const isSelected = !!this.selectedBtn[category];
+      const isSelected = !!this.selectedBtn[category as keyof PointCategoryState];
       markers.forEach(markerObj => {
         const el = markerObj.object?.getElement();
         if (!el) return;
@@ -1225,14 +1231,13 @@ export class MapPage implements OnInit, OnDestroy {
         selectedDays: content.selectedDays || [],
         heureDebut: content.heureDebut || content.heure,
         heureFin: content.heureFin || null,
-        level: content.level,
         like: content.like,
         dislike: content.dislike,
         userId: content.userId,
         username: content.username,
         role: content.role,
       };
-      this.participationService.rewardAirportWait();
+      // No client-side award for notes per spec
     }
     else if (type === 'green') {
       json = {
@@ -1249,7 +1254,7 @@ export class MapPage implements OnInit, OnDestroy {
         role: content.role,
         createDate: new Date(),
       };
-      this.participationService.rewardAirportWait();
+      // Points for stations are awarded on the backend; avoid double-award on client
     }
     else if (type === 'jaune') {
       json = {
@@ -1268,7 +1273,7 @@ export class MapPage implements OnInit, OnDestroy {
         role: content.role,
         createDate: new Date(),
       };
-      this.participationService.rewardAirportWait();
+      // No client-side award for SOS per spec
     } 
     // --- THIS IS THE FIX ---
     // Use an explicit 'else if' for event to prevent fall-through bugs.
@@ -1292,7 +1297,7 @@ export class MapPage implements OnInit, OnDestroy {
         role: content.role,
         createDate: new Date(),
       };
-      this.participationService.rewardEvent();
+      // Event points are awarded on the backend; avoid double-award on client
       console.log("Saving event point:", json);
     }
     // --- END OF FIX ---
@@ -1309,7 +1314,14 @@ export class MapPage implements OnInit, OnDestroy {
           try { if (newMarker && typeof newMarker.remove === 'function') { newMarker.remove(); } } catch {}
           
           const pointType = data.type;
-          const newPointData = data.point[pointType][0];
+          // Backend returns key 'sos' for jaune; others match their type
+          const payloadKey = pointType === 'jaune' ? 'sos' : pointType;
+          const createdList = data && data.point ? data.point[payloadKey] : null;
+          if (!Array.isArray(createdList) || createdList.length === 0) {
+            console.warn('Unexpected point payload on create:', data);
+            return;
+          }
+          const newPointData = createdList[0];
 
           this.newPointId = newPointData.id;
 
@@ -1326,6 +1338,7 @@ export class MapPage implements OnInit, OnDestroy {
             case 'green':
               this.greenMarkers.push({ ...newPointData, polyline: newPointData['polyline'] ?? null });
               this.addMarkers([{ ...newPointData }], 'green');
+              try { this.participationService.refresh(); } catch {}
               break;
             case 'red':
               this.redMarkers.push(newPointData);
@@ -1342,6 +1355,7 @@ export class MapPage implements OnInit, OnDestroy {
             case 'event':
               this.purpleMarkers.push(newPointData);
               this.addMarkers([newPointData], 'event');
+              try { this.participationService.refresh(); } catch {}
               break;
           }
         }
@@ -1903,20 +1917,11 @@ getIndexMarker(type: string, object: any): number {
 
       if (content.userId == this.authService.$userinfo?.id) {
 
-        const dateTimeContent = !content.created_at
-          ? `<div class="shimmer-container">
-               <div class="shimmer-line" style="width: 120px; height: 14px; margin: 2px 0;"></div>
-             </div>`
-          : (() => {
-              const displayDate = new Date(content.created_at);
-              return `<span>${displayDate.toLocaleDateString('fr-FR')} à ${displayDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>`;
-            })();
-
         return `<div class="bg-white ring-gray-900/5">
             ${detailsBlock}
             <div class="mx-auto flex flex-col">
               <label class="py-1 font-light">Mise à jour par  <span>${this.authService.$userinfo.firstName
-          } ${this.authService.$userinfo.lastName}</span></label> 
+          } ${this.authService.$userinfo.lastName}</span></label>
             </div>
             <ion-button id="${'supprimer' + index
           }" class="mt-2" size="small" fill="outline" style="--border-color:#EB2F06; --color:#EB2F06; text-transform: none;">Supprimer</ion-button>
@@ -2175,17 +2180,29 @@ getIndexMarker(type: string, object: any): number {
 
     const lieu = content.lieu || content.name || 'Lieu inconnu';
     const typeLabel = content.type || (type === 'jaune' ? 'SOS' : type);
+    
+    const createdAt = new Date(content.created_at);
+    const updatedAt = new Date(content.updated_at);
+
+    let timeString;
+    // Compare timestamps, considering a small threshold for precision issues
+    if (Math.abs(updatedAt.getTime() - createdAt.getTime()) > 1000) { // More than 1 second difference
+        timeString = `Mise à jour: ${updatedAt.toLocaleDateString('fr-FR')} à ${updatedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    } else {
+        timeString = `Crée: ${createdAt.toLocaleDateString('fr-FR')} à ${createdAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
 
     return `
-      <div class="mx-auto flex flex-col mb-2">
-        <p class="text-sm text-gray-700">Lieu: <strong>${lieu}</strong></p>
-        <p class="text-sm text-gray-700">Type: <strong>${typeLabel}</strong></p>
-        ${datePart}
-        ${timePart}
+      <div class="bg-gray-100 rounded-lg p-3 mb-2">
+          <h4 class="text-md font-bold mb-2 text-center">Détails du point</h4>
+          <p class="text-sm text-gray-800"><strong>Lieu:</strong> ${lieu}</p>
+          <p class="text-sm text-gray-800"><strong>Type:</strong> ${typeLabel}</p>
+          ${datePart}
+          ${timePart}
+          <p class="text-xs text-gray-600 mt-2">${timeString}</p>
       </div>
     `;
   }
-  displayModify(index: any) { }
 
   onPause = () => {
     if (this.MarkerTimer) {
@@ -2590,7 +2607,7 @@ getIndexMarker(type: string, object: any): number {
     if (!this.map) return; // Ensure map exists before adding markers
     
     const hasSelectedCategory = Object.values(this.selectedBtn).some(selected => selected);
-    const buttonCategory = this.getCategoryForType(type);
+    const buttonCategory = this.getCategoryForType(type) as keyof PointCategoryState;
     const isThisCategorySelected = this.selectedBtn[buttonCategory];
   
     markerList.forEach((markerData, index) => {
@@ -3825,7 +3842,7 @@ getIndexMarker(type: string, object: any): number {
         if (this.currentPolyline) {
             this.currentPolyline.remove();
         }
-        this.currentPolyline = L.polyline(this.polylinePoints, { color: '#4A90E2', weight: 4, opacity: 0.9, dashArray: '5, 10' }).addTo(this.map!);
+        this.currentPolyline = L.polyline(this.polylinePoints, { color: '#4A90E2', weight: 4, opacity: 0.9 }).addTo(this.map!);
     };
 
     if (this.map) {
@@ -3833,166 +3850,32 @@ getIndexMarker(type: string, object: any): number {
     }
   }
 
-  // Enable editing of an existing station path: drag vertices and delete segments
-  private enablePolylineEditing(staleStation: any) {
-    // --- FIX: Fetch latest station data to avoid editing a stale path ---
-    const stationId = this.normalizeId(staleStation.id);
-    const station = this.greenMarkers.find((s: any) => this.normalizeId(s.id) === stationId);
-    if (!station) {
-      console.error(`Cannot edit station ${stationId}: Not found in local data.`);
-      presentToast('Erreur: Impossible de trouver les données de la station.', 'bottom', 'danger');
-      return;
-    }
-    if (this.isDrawingPolyline) return;
-    if (!this.map) return;
-    this.isDrawingPolyline = true;
-    presentToast('Mode modification de trajectoire activé. Touchez un segment pour le supprimer. Faites glisser les points pour ajuster.', 'bottom', 'primary');
-
-    this.editingStationId = station.id;
-    // Pause auto-location updates and auto-pan while editing
-    this.pauseLocationTracking();
-    
-    // Clean up any existing editing state
-    this.editingSegments.forEach(pl => { try { pl.remove(); } catch {} });
-    this.editingSegments = [];
-    this.editingLatLngs = [];
-    this.editVertexMarkers.forEach(m => { try { m.remove(); } catch {} });
-    this.editVertexMarkers = [];
-    
-    // Remove existing non-editable polylines for this station to avoid confusion
-    this.removePolylinesByStationId(station.id);
-
-    console.log('Station polyline data:', station.polyline);
-    
-    if (!station.polyline) {
-      console.log('No polyline data found, switching to drawing mode');
-      // No path yet: fall back to drawing mode starting from station
-      // Ensure edit mode is fully cleared so finish saves drawing (not empty edit)
-      this.editingStationId = null;
-      this.editingSegments.forEach(pl => { try { pl.remove(); } catch {} });
-      this.editingSegments = [];
-      this.editingLatLngs = [];
-      this.editVertexMarkers.forEach(m => { try { m.remove(); } catch {} });
-      this.editVertexMarkers = [];
-      this.isDrawingPolyline = false;
-      this.enablePolylineDrawing(station.id, station);
-      return;
-    }
-
-    // Build editable segments from stored polyline(s)
-    let parsed: any;
-    try {
-      parsed = JSON.parse(station.polyline);
-      console.log('Parsed polyline data:', parsed);
-    } catch (e) {
-      console.log('Failed to parse polyline data:', e);
-      parsed = [];
-    }
-
-    // Normalize and validate segments
-    let segments: any[] = Array.isArray(parsed[0]) ? parsed : [parsed];
-    segments = segments.filter((seg: any) => Array.isArray(seg));
-    const totalPoints = segments.reduce((sum: number, seg: any[]) => sum + seg.length, 0);
-    if (totalPoints < 2) {
-      console.log('Polyline empty or invalid; switching to drawing mode');
-      // Ensure edit mode is fully cleared before switching to drawing mode
-      this.editingStationId = null;
-      this.editingSegments.forEach(pl => { try { pl.remove(); } catch {} });
-      this.editingSegments = [];
-      this.editingLatLngs = [];
-      this.editVertexMarkers.forEach(m => { try { m.remove(); } catch {} });
-      this.editVertexMarkers = [];
-      this.isDrawingPolyline = false;
-      this.enablePolylineDrawing(station.id, station);
-      return;
-    }
-
-    const allEditLatLngs: L.LatLng[] = [];
-    console.log('Found segments for editing:', segments.length);
-    segments.forEach((seg, segIdx) => {
-      const latlngs = seg.map((ll: any) => L.latLng((ll as any).lat ?? ll[0], (ll as any).lng ?? (ll as any).lon ?? ll[1]));
-      this.editingLatLngs.push(latlngs as L.LatLng[]);
-      console.log(`Drawing editable segment ${segIdx} with ${latlngs.length} points`);
-      const pl = L.polyline(latlngs as L.LatLng[], { color: '#4A90E2', weight: 4, opacity: 0.9, dashArray: '5, 10' }).addTo(this.map!);
-      // Click to delete this segment
-      pl.on('click', () => {
-        if (confirm('Supprimer ce segment ?')) {
-          const idx = this.editingSegments.indexOf(pl);
-          if (idx >= 0) {
-            try { pl.remove(); } catch {}
-            this.editingSegments.splice(idx, 1);
-            this.editingLatLngs.splice(idx, 1);
-          }
-        }
-      });
-      this.editingSegments.push(pl);
-      // Create draggable markers for vertices
-      latlngs.forEach((pt: L.LatLng, vertexIdx: number) => {
-      const dotIcon = L.divIcon({ className: 'polyline-dot-icon', html: '<div style="width:10px;height:10px;border-radius:50%;background:#4A90E2;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.4)"></div>', iconSize: [12, 12], iconAnchor: [6, 6] });
-        const vm = L.marker(pt, { icon: dotIcon, draggable: true }).addTo(this.map!);
-        vm.on('drag', (e: any) => {
-          const newPos: L.LatLng = e.target.getLatLng();
-          this.editingLatLngs[segIdx][vertexIdx] = newPos;
-          this.editingSegments[segIdx].setLatLngs(this.editingLatLngs[segIdx]);
-        });
-        vm.on('contextmenu', () => {
-          if (confirm('Supprimer ce point ?')) {
-            this.editingLatLngs[segIdx].splice(vertexIdx, 1);
-            try { vm.remove(); } catch {}
-            if (this.editingLatLngs[segIdx].length < 2) {
-              try { this.editingSegments[segIdx].remove(); } catch {}
-              this.editingSegments.splice(segIdx, 1);
-              this.editingLatLngs.splice(segIdx, 1);
-            } else {
-              this.editingSegments[segIdx].setLatLngs(this.editingLatLngs[segIdx]);
-            }
-          }
-        });
-        this.editVertexMarkers.push(vm);
-      });
-      allEditLatLngs.push(...(latlngs as L.LatLng[]));
-    });
-    // Fit view to the editable path for visibility
-    if (allEditLatLngs.length > 0) {
-      const bounds = L.latLngBounds(allEditLatLngs);
-      this.map?.fitBounds(bounds, { padding: [40, 40] });
-    }
-  }
 
     finishPolylineDrawing() {
-        console.log("Finishing polyline drawing.");
+        if (!this.isDrawingPolyline) {
+            return; // Prevent accidental calls
+        }
+        console.log("Finish button clicked. Saving polyline drawing.");
 
-        // Case 1: Editing existing segments
-        if (this.editingStationId) {
-          const stationId = this.editingStationId;
-          // Build serializable structure
-        // If only one segment, store as flat array for backward compatibility
-        const serialized = this.editingLatLngs.length === 1
-          ? this.editingLatLngs[0].map(ll => ({ lat: ll.lat, lng: ll.lng }))
-          : this.editingLatLngs.map(arr => arr.map(ll => ({ lat: ll.lat, lng: ll.lng })));
-          const jsonPolyline = JSON.stringify(serialized);
-          const updateData = { id: stationId, type: 'green', newData: { polyline: jsonPolyline } };
-          // Persist to backend only
-          this.updatePoint(updateData);
-          // Immediately re-render solid line without full refresh
-          this.renderStationPolylineFromJson(stationId, jsonPolyline);
+        // The station being edited is stored in this.editingStationId
+        const stationId = this.editingStationId;
 
-          // Cleanup edit mode
-          this.editVertexMarkers.forEach(m => { try { m.remove(); } catch {} });
-          this.editVertexMarkers = [];
-          this.editingSegments.forEach(pl => { try { pl.remove(); } catch {} });
-          this.editingSegments = [];
-          this.editingLatLngs = [];
-          this.editingStationId = null;
-          this.isDrawingPolyline = false;
-          presentToast("Trajectoire mise à jour.", "bottom", "success");
-          // Resume location tracking if it was active before editing
-          this.resumeLocationTracking();
-          // Keep the view and leave the new solid polyline on map
-          return;
+        // Save the drawn polyline if it's valid
+        if (stationId && this.currentPolyline && this.polylinePoints.length >= 2) {
+            const coordinates = (this.currentPolyline.getLatLngs() as L.LatLng[]).map(ll => ({ lat: ll.lat, lng: ll.lng }));
+            console.log("Final polyline coordinates:", coordinates);
+
+            const jsonPolyline = JSON.stringify([coordinates]); // Always save as a multi-polyline for consistency
+            const updateData = { id: stationId, type: 'green', newData: { polyline: jsonPolyline } };
+            
+            this.updatePoint(updateData);
+            this.renderStationPolylineFromJson(stationId, jsonPolyline);
+            presentToast("Trajectoire mise à jour avec succès.", "bottom", "success");
+        } else {
+            presentToast("Aucun chemin valide à sauvegarder.", "bottom", "warning");
         }
 
-        // Case 2: Drawing a new polyline from a station
+        // --- CRITICAL: Cleanup and Reset State ---
         if (this.map && this.mapClickHandler) {
             this.map.off("click", this.mapClickHandler);
             this.mapClickHandler = null;
@@ -4002,27 +3885,16 @@ getIndexMarker(type: string, object: any): number {
         this.polylineMarkers.forEach(marker => marker.remove());
         this.polylineMarkers = [];
 
-        if (this.currentPolyline && this.polylinePoints.length >= 2) {
-            const coordinates = (this.currentPolyline.getLatLngs() as L.LatLng[]).map(ll => ({ lat: ll.lat, lng: ll.lng }));
-            console.log("Final polyline coordinates:", coordinates);
-            
-            // Find the station point ID from the polyline's starting point
-            const stationId = this.greenMarkers.find((s: any) => s.lat == this.polylinePoints[0].lat && s.lng == this.polylinePoints[0].lng)?.id;
-
-            if (stationId) {
-                const jsonPolyline = JSON.stringify(coordinates);
-                const updateData = { id: stationId, type: 'green', newData: { polyline: jsonPolyline } };
-                this.updatePoint(updateData);
-                this.renderStationPolylineFromJson(stationId, jsonPolyline);
-            }
+        // Remove the temporary drawing line
+        if (this.currentPolyline) {
+            this.currentPolyline.remove();
         }
 
-        // Reset state
         this.isDrawingPolyline = false;
+        this.editingStationId = null; // This is the key fix for the line reappearing
         this.polylinePoints = [];
         this.currentPolyline = null;
 
-        presentToast("Trajectoire créée avec succès.", "bottom", "success");
         // Resume location tracking if it was active before drawing
         this.resumeLocationTracking();
     }
@@ -4117,9 +3989,8 @@ getIndexMarker(type: string, object: any): number {
           this.closeAllPopups();
           // Keep the current map center and zoom; do not call goToLocation or re-center
           // Do NOT call updatePoint() or getAllPoint() here - just enable editing mode
-          this.enablePolylineEditing(object);
-        } 
-        else {
+          this.startPolylineRedraw(object);
+        } else {
           console.warn("No radio button selected. Please choose an option before modifying.");
           presentToast(
             "Veuillez sélectionner une option avant de modifier.",
@@ -4767,8 +4638,8 @@ getIndexMarker(type: string, object: any): number {
   private updateQueueVisualization() {
     if (!this.activeQueueStationId || !this.map) return;
 
-    this.queueService.getPositions(this.activeQueueStationId).subscribe({
-      next: (positions) => {
+    this.queueService.getPositions(this.activeQueueStationId).subscribe(
+      (positions: UserPosition[]) => {
         if (positions.length === 0) return;
 
         // Remove existing green progress line
@@ -4784,7 +4655,6 @@ getIndexMarker(type: string, object: any): number {
         if (station) {
           coordinates.push([station.lat, station.lng]);
         }
-
         // Create blue polyline to visualize path consistently
         this.greenProgressLine = L.polyline(coordinates, {
           color: '#4A90E2',
@@ -4799,10 +4669,33 @@ getIndexMarker(type: string, object: any): number {
 
         console.log(`Queue visualization updated with ${positions.length} positions`);
       },
-      error: (err) => {
+      (err) => {
         console.error('Error fetching queue positions:', err);
       }
-    });
+    );
   }
 
+  private startPolylineRedraw(station: any) {
+    if (!station || !station.id) {
+      presentToast('Erreur: Station non valide.', 'bottom', 'danger');
+      return;
+    }
+    this.closeAllPopups();
+    // --- THIS IS THE FIX: Set the editing state immediately ---
+    this.editingStationId = this.normalizeId(station.id);
+
+    // Clean up any dashed line from a previous, unfinished edit session
+    if (this.currentPolyline) {
+      this.currentPolyline.remove();
+      this.currentPolyline = null;
+    }
+    this.polylineMarkers.forEach(marker => marker.remove());
+    this.polylineMarkers = [];
+
+    // 1. Remove the old polyline visually and from tracking arrays.
+    this.removePolylinesByStationId(station.id);
+
+    // 2. Immediately enable drawing mode to create the new line.
+    this.enablePolylineDrawing(station.id, station);
+  }
 }

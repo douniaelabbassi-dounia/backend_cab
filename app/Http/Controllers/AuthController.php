@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 
 class AuthController extends Controller
@@ -121,7 +123,36 @@ class AuthController extends Controller
                     $organisateur->save();
                 }
     
-                return response()->json(['message' => 'User registered successfully'], 201);
+                // Auto-login: create token and initialize participation on first registration
+                try {
+                    // Initialize participation row (30/50) if not present
+                    $today = \Carbon\Carbon::today()->toDateString();
+                    $exists = \Illuminate\Support\Facades\DB::table('user_participation')->where('user_id', $user_id)->first();
+                    if (!$exists) {
+                        \Illuminate\Support\Facades\DB::table('user_participation')->insert([
+                            'user_id' => $user_id,
+                            'current_points' => 30,
+                            'max_points' => 50,
+                            'last_connection' => $today,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                        \Illuminate\Support\Facades\DB::table('participation_history')->insert([
+                            'user_id' => $user_id,
+                            'action_type' => 'initialize',
+                            'points_change' => 30,
+                            'points_before' => 0,
+                            'points_after' => 30,
+                            'reason' => 'User initialization on register',
+                            'created_at' => now()
+                        ]);
+                    }
+                } catch (\Exception $initEx) {
+                    \Log::warning('Participation initialization on register failed: ' . $initEx->getMessage());
+                }
+
+                $token = $user->createToken('authToken')->plainTextToken;
+                return response()->json(['message' => 'ok', 'token' => $token, 'type_token' => 'Bearer', 'user_info' => $user], 201);
            } catch (\Exception $e) {
             if(isset($user)){
                 User::where('id', $user->id)->forceDelete();
@@ -158,6 +189,40 @@ class AuthController extends Controller
 
                 if($user->status == 'toValidate'){
                     return response()->json(['message' => 'votre compte a été suspendu, nous le vérifierons dès que possible'], 403);
+                }
+
+                // Apply daily reduction or initialize participation on login
+                try {
+                    $participation = DB::table('user_participation')->where('user_id', $user->id)->first();
+                    $today = Carbon::today()->toDateString();
+                    if (!$participation) {
+                        DB::table('user_participation')->insert([
+                            'user_id' => $user->id,
+                            'current_points' => 30,
+                            'max_points' => 50,
+                            'last_connection' => $today,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                        DB::table('participation_history')->insert([
+                            'user_id' => $user->id,
+                            'action_type' => 'initialize',
+                            'points_change' => 30,
+                            'points_before' => 0,
+                            'points_after' => 30,
+                            'reason' => 'User initialization on login',
+                            'created_at' => now(),
+                        ]);
+                    } else if ($participation->last_connection < $today) {
+                        $newPoints = max(0, $participation->current_points - 1);
+                        DB::table('user_participation')->where('user_id', $user->id)->update([
+                            'current_points' => $newPoints,
+                            'last_connection' => $today,
+                            'updated_at' => now(),
+                        ]);
+                    }
+                } catch (\Exception $ex) {
+                    \Log::warning('Daily reduction on login failed: ' . $ex->getMessage());
                 }
 
                 $token = $user->createToken('authToken')->plainTextToken;

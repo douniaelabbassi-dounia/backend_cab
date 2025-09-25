@@ -23,6 +23,7 @@ export class ProfilService {
   UrlUpdateSetting:string = URL + 'profile/setting/update';
   UrlUpassword:string = URL + 'profile/password/update';
   UrlUpload:string = URL + 'upload';
+  UrlUpdateImage:string = URL + 'profile/image/update';
 
   // $Authorization = {
   //   'Authorization': ``,
@@ -134,6 +135,12 @@ export class ProfilService {
   $uploadImage(content:any){
     this.$inicializeToken();
     return this.http.post(this.UrlUpload, content, {headers: this.$Authorization});
+  }
+
+  $updateProfileImage(content: { image: string }){
+    this.$inicializeToken();
+    // Leave Content-Type as application/json; backend expects base64 string in JSON
+    return this.http.post(this.UrlUpdateImage, content, { headers: this.$Authorization });
   }
 
   $inicializeToken(){

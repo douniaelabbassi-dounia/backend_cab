@@ -16,9 +16,9 @@
   <!-- Profile -->
   <div (click)="goTo('profil')" class="w-full">
     <div class="flex items-center">
-      <div class="w-[50px]">
-        <img class="rounded-2xl"
-          [src]="userinfo?.image?.url? URL + 'storage/' + userinfo?.image?.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
+      <div class="w-[50px] h-[50px] rounded-full overflow-hidden">
+        <img class="w-full h-full object-cover"
+          [src]="userinfo?.image?.url ? imageSrc(userinfo?.image?.url) : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
       </div>
       <div class="w-3/5 pl-3">
         <!-- <div *ngIf="userinfo?.role?.role_name == 'organisateur'" class="flex flex-col">

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { NavController } from '@ionic/angular';
 import { Subscription } from 'rxjs';
@@ -6,6 +6,8 @@ import { skip } from 'rxjs/operators';
 import { ProfilService } from 'src/app/utiles/services/profil/profil.service';
 import { ParticipationService } from 'src/app/utiles/services/participation/participation.service';
 import { URL_BASE } from 'src/environments/environment';
+import { Camera as CapacitorCamera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-profil',
@@ -14,6 +16,7 @@ import { URL_BASE } from 'src/environments/environment';
 })
 export class ProfilPage implements OnInit, OnDestroy {
   URL = URL_BASE;
+  imgCacheBust = Date.now();
   
   // These are the variables your HTML template is using
   profilInfo: any;
@@ -30,6 +33,7 @@ export class ProfilPage implements OnInit, OnDestroy {
   
   // Variables for modals and file uploads (added for completeness)
   sourceModal: boolean = false;
+  @ViewChild('fileInput', { static: false }) fileInputRef!: ElementRef<HTMLInputElement>;
   
   constructor(
     private authService: ProfilService,
@@ -69,6 +73,8 @@ export class ProfilPage implements OnInit, OnDestroy {
         if (this.profilInfo && this.profilInfo.id) {
           this.participationService.setUserId(this.profilInfo.id);
         }
+        // Bust image cache so updated avatars show immediately
+        this.imgCacheBust = Date.now();
       },
       error: (err) => {
         console.error('Error fetching profile data: ' + err.error.message);
@@ -100,12 +106,114 @@ export class ProfilPage implements OnInit, OnDestroy {
     this.sourceModal = !this.sourceModal;
   }
   
-  choiceMethod(event: any) {
-     console.log('Choice method event:', event);
+  async choiceMethod(event: 'takePic' | 'getPic') {
+    try {
+      if (event === 'takePic') {
+        const image = await CapacitorCamera.getPhoto({
+          quality: 80,
+          resultType: CameraResultType.DataUrl,
+          source: CameraSource.Camera
+        });
+        if (image && image.dataUrl) {
+          const resized = await this.resizeImage(image.dataUrl, 512);
+          await this.uploadProfileImage(resized);
+        }
+      } else if (event === 'getPic') {
+        // Fallback to file input for broad device support
+        if (this.fileInputRef && this.fileInputRef.nativeElement) {
+          this.fileInputRef.nativeElement.value = '';
+          this.fileInputRef.nativeElement.click();
+        }
+      }
+    } catch (e) {
+      console.error('Image choice error', e);
+    } finally {
+      // Keep modal state predictable: close after action selection
+      this.sourceModal = false;
+    }
   }
   
   onFileSelected(event: any) {
-     console.log('File selected:', event);
+    const file: File | undefined = event?.target?.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      const resized = await this.resizeImage(dataUrl, 512);
+      await this.uploadProfileImage(resized);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  private resizeImage(dataUrl: string, maxSize: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        // Scale to fit within maxSize while preserving aspect ratio
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas not supported'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
+
+  private async uploadProfileImage(base64DataUrl: string) {
+    try {
+      const res: any = await firstValueFrom(this.authService.$updateProfileImage({ image: base64DataUrl }));
+      // Refresh local profile info for immediate UI update
+      await new Promise<void>((resolve) => {
+        this.authService.$profil().subscribe({
+          next: (data: any) => {
+            this.profilInfo = data;
+            this.friendsList = data.friends || [];
+            this.authService.$userinfo = data; // keeps menu avatar in sync
+            this.imgCacheBust = Date.now();
+            resolve();
+          },
+          error: () => resolve()
+        });
+      });
+    } catch (e) {
+      console.error('Failed to upload profile image', e);
+    }
+  }
+
+  // Build a correct storage URL regardless of API base having '/api'
+  storageUrl(path: string): string {
+    const host = this.URL.replace(/\/(api|api\/)$/, '/');
+    const url = host + 'storage/' + path.replace(/^\/*/, '');
+    const sep = url.includes('?') ? '&' : '?';
+    return url + sep + 'v=' + this.imgCacheBust;
+  }
+
+  imageSrc(path?: string): string {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) {
+      const sep = path.includes('?') ? '&' : '?';
+      return path + sep + 'v=' + this.imgCacheBust;
+    }
+    return this.storageUrl(path);
   }
 
   ngOnDestroy() {

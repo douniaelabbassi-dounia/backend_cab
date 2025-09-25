@@ -13,6 +13,7 @@ styleUrls: ['./menu.style.css'],
 export class MenuComponent implements OnInit {
 userinfo: any;
 URL = URL_BASE; // TO USE THE URL ON TEMPLATE
+imgCacheBust = Date.now();
 
 @Input() menuDisplay: any;
 @Input() timer: any;
@@ -115,6 +116,7 @@ constructor(
         this.userinfo = data;
         this.authService.$userinfo = data;
         this.authService.$friendsList = data.friends;
+        this.imgCacheBust = Date.now();
       },
       (err) => {
         console.log('error : ' + err.error.message);
@@ -144,5 +146,17 @@ constructor(
 
   save() {
     presentToast('not developed yet!', 'bottom', 'danger');
+  }
+
+  imageSrc(path?: string): string {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) {
+      const sep = path.includes('?') ? '&' : '?';
+      return path + sep + 'v=' + this.imgCacheBust;
+    }
+    const host = this.URL.replace(/\/(api|api\/)$/, '/');
+    const url = host + 'storage/' + String(path).replace(/^\/*/, '');
+    const sep = url.includes('?') ? '&' : '?';
+    return url + sep + 'v=' + this.imgCacheBust;
   }
 }

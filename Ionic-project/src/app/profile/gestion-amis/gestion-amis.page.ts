@@ -12,6 +12,7 @@ import { URL_BASE } from 'src/environments/environment';
 })
 export class GestionAmisPage implements OnInit {
   URL = URL_BASE; // TO USE THE URL ON TEMPLATE
+  imgCacheBust = Date.now();
 
   friendsList:any = [];
 
@@ -134,6 +135,7 @@ export class GestionAmisPage implements OnInit {
         console.log("friensd : "+ JSON.stringify(data));
         this.friendsList = await data.friends;
         this.profilService.$friendsList = await data.friends;
+        this.imgCacheBust = Date.now();
       },
       err => {
         console.log("error : " + JSON.stringify(err));
@@ -180,5 +182,17 @@ export class GestionAmisPage implements OnInit {
         console.log('error : ' + JSON.stringify(err)); 
       }
     );
+  }
+
+  imageSrc(path?: string): string {
+    if (!path) return '';
+    if (/^https?:\/\//i.test(path)) {
+      const sep = path.includes('?') ? '&' : '?';
+      return path + sep + 'v=' + this.imgCacheBust;
+    }
+    const host = this.URL.replace(/\/(api|api\/)$/, '/');
+    const url = host + 'storage/' + String(path).replace(/^\/*/, '');
+    const sep = url.includes('?') ? '&' : '?';
+    return url + sep + 'v=' + this.imgCacheBust;
   }
 }

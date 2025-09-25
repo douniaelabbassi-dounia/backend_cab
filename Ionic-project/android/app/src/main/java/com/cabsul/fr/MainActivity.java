@@ -1,4 +1,4 @@
-package com.example.app;
+package com.cabsul.fr;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -228,10 +228,14 @@ export class MapPage implements OnInit, OnDestroy {
   private alreadyDisabledIds: Set<number> = new Set();
   // Keep newly created notes visible for a short grace period even if outside time window
   private recentlyCreatedNotes: Map<number, number> = new Map();
+  // Grace window for newly created events to ensure they render immediately
+  private recentlyCreatedEvents: Map<number, number> = new Map();
   // Realtime refresh state
   private realtimeInterval: any = null;
   private realtimeIntervalMs: number = 15000; // 15s
   private realtimeEnabled: boolean = true;
+  // Locally suppressed points (recently deleted) to prevent flicker re-adds
+  private suppressedPointIds: Set<number> = new Set();
 
   private normalizeId(id: any): number {
     const n = typeof id === 'number' ? id : parseInt(String(id), 10);
@@ -276,6 +280,10 @@ export class MapPage implements OnInit, OnDestroy {
         console.log(this.skipedPub);
       }
       this.displayer.menuDisplay = false;
+      // Clear any category filters to ensure all markers are visible upon return
+      this.selectedBtn = { event: false, affluence: false, note: false, autre: false, sos: false, station: false };
+      this.transparent = { event: false, affluence: false, note: false, autre: false, sos: false, station: false };
+      try { this.setMarkersOpacity(); } catch {}
       this.showOnboarding = localStorage.getItem('onpoarding');
 
       // Fetch profile first to ensure user info is available for marker rendering.
@@ -978,13 +986,14 @@ export class MapPage implements OnInit, OnDestroy {
     ];
 
     if (!hasSelectedCategory) {
-      // Restore all markers to visible state; affluence keeps its fade
+      // Restore all markers to visible state. For affluence, compute current expected opacity.
       markerCategories.forEach(({ markers, category }) => {
         markers.forEach(markerObj => {
           const el = markerObj.object?.getElement();
           if (!el) return;
           if (category === 'affluence') {
-            // Do not alter opacity; timers manage it
+            const opacity = this.getAffluenceCurrentOpacity(markerObj);
+            if (!isNaN(opacity)) el.style.opacity = opacity.toString();
             el.style.pointerEvents = 'auto';
           } else {
             el.style.opacity = '1';
@@ -992,6 +1001,8 @@ export class MapPage implements OnInit, OnDestroy {
           }
         });
       });
+      // Ensure all station polylines ("fil") are visible when no filter is active
+      try { this.updatePolylineVisibilityForFilter(); } catch {}
       return;
     }
 
@@ -1018,6 +1029,34 @@ export class MapPage implements OnInit, OnDestroy {
         }
       });
     });
+
+    // Also toggle station polylines visibility based on the active category
+    try { this.updatePolylineVisibilityForFilter(); } catch {}
+  }
+
+  // Hide or show station polylines (and live queue line) according to filter state.
+  // - No filter: show all polylines
+  // - Filter active and not 'station': hide polylines
+  // - Filter 'station': show polylines
+  private updatePolylineVisibilityForFilter() {
+    const anyFilter = Object.values(this.selectedBtn).some(Boolean);
+    const showPolylines = !anyFilter || !!this.selectedBtn.station;
+
+    const targetOpacity = showPolylines ? 0.9 : 0;
+
+    // Solid station polylines
+    try {
+      (this.polylines || []).forEach(p => {
+        try { p.polyline.setStyle({ opacity: targetOpacity }); } catch {}
+      });
+    } catch {}
+
+    // Live queue progress line, if any
+    try { if (this.greenProgressLine) { this.greenProgressLine.setStyle({ opacity: targetOpacity }); } } catch {}
+
+    // Any in-progress drawing/editing artifacts
+    try { if (this.currentPolyline) { this.currentPolyline.setStyle({ opacity: targetOpacity }); } } catch {}
+    try { (this.editingSegments || []).forEach(seg => { try { seg.setStyle({ opacity: targetOpacity }); } catch {} }); } catch {}
   }
 
   // One-shot GPS fix via Leaflet locate. Resolves with null if unavailable.
@@ -1080,6 +1119,7 @@ export class MapPage implements OnInit, OnDestroy {
 
 
   private isFetchingPoints = false;
+  private initialFetchRetryDone = false;
   getAllPoint(keepView: boolean = true) {
     if (this.isFetchingPoints) {
       return; // Prevent overlapping fetches
@@ -1105,6 +1145,9 @@ export class MapPage implements OnInit, OnDestroy {
         // Ensure periodic check for event visibility
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
+
+        // Restart fading timers for affluence points to guarantee visibility after navigation
+        try { this.refreshFading(); } catch {}
 
         // Update popup content for SOS popups to reflect latest data
         try { this.refreshSosPopups(); } catch {}
@@ -1132,6 +1175,15 @@ export class MapPage implements OnInit, OnDestroy {
 
         // Ensure all markers are properly rendered after loading without forcing a full rebuild
         requestAnimationFrame(() => this.map?.invalidateSize());
+        // If the dataset unexpectedly arrived empty (e.g., slow backend, stale connection),
+        // retry a single time shortly after map is ready to avoid a blank map.
+        const totalCount = (this.redMarkers?.length || 0) + (this.greenMarkers?.length || 0) + (this.blueMarkers?.length || 0) + (this.jauneMarkers?.length || 0) + (this.purpleMarkers?.length || 0);
+        if (totalCount === 0 && !this.initialFetchRetryDone) {
+          this.initialFetchRetryDone = true;
+          setTimeout(() => {
+            try { this.getAllPoint(); } catch {}
+          }, 1200);
+        }
         // --- FIX END ---
 
       this.isFetchingPoints = false;
@@ -1150,7 +1202,7 @@ export class MapPage implements OnInit, OnDestroy {
 
   // --- FIX: New marker synchronization logic ---
   private syncMarkers(data: any) {
-    const newPointsData = {
+    const rawData = {
       red: data.red || [],
       green: data.green || [],
       blue: data.note || [],
@@ -1158,7 +1210,17 @@ export class MapPage implements OnInit, OnDestroy {
       event: data.event || [],
     };
 
+    // If backend still returns a just-deleted point, suppress it locally to avoid flicker
+    const newPointsData = {
+      red: rawData.red.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
+      green: rawData.green.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
+      blue: rawData.blue.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
+      jaune: rawData.jaune.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
+      event: rawData.event.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
+    };
+
     const allNewIds = new Set([].concat(...Object.values(newPointsData)).map((p: any) => p.id));
+    const allRawIds = new Set([].concat(...Object.values(rawData)).map((p: any) => p.id));
     const allExistingIds = new Set(this.allMarkers.map((m: any) => m.pointId));
 
     // 1. REMOVE STALE MARKERS
@@ -1193,6 +1255,13 @@ export class MapPage implements OnInit, OnDestroy {
     this.loadPolylines();
     this.setMarkersOpacity();
     this.ensureMarkersVisible();
+
+    // Cleanup: if backend no longer reports a suppressed id, release it
+    if (this.suppressedPointIds.size > 0) {
+      Array.from(this.suppressedPointIds).forEach(id => {
+        if (!allRawIds.has(id)) this.suppressedPointIds.delete(id);
+      });
+    }
   }
 
 
@@ -1354,6 +1423,13 @@ export class MapPage implements OnInit, OnDestroy {
               break;
             case 'event':
               this.purpleMarkers.push(newPointData);
+              // Ensure newly created events appear immediately (grace window)
+              try {
+                const eid = this.normalizeId(newPointData.id);
+                if (eid > 0) this.recentlyCreatedEvents.set(eid, Date.now() + 5 * 60 * 1000);
+                // Start watcher if not running so it can transition out of grace later
+                try { this.ensureEventVisibilityWatcher(); } catch {}
+              } catch {}
               this.addMarkers([newPointData], 'event');
               try { this.participationService.refresh(); } catch {}
               break;
@@ -2628,10 +2704,14 @@ getIndexMarker(type: string, object: any): number {
       }
       // --- END OF NEW SAFEGUARD ---
 
-      // Timed visibility for events/notes: only render if currently active
+      // Timed visibility for events/notes
+      // Events: allow a short grace period after creation so they show immediately
       if (type === 'event') {
+        const now = Date.now();
+        const evExpiresAt = this.recentlyCreatedEvents.get(this.normalizeId(markerData.id));
+        const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
         const isActiveNow = this.checkDates(markerData, 'none');
-        if (!isActiveNow) {
+        if (!underGrace && !isActiveNow) {
           return;
         }
       }
@@ -2727,7 +2807,7 @@ getIndexMarker(type: string, object: any): number {
         this.startFadingForPoint(newMarker, markerData);
       }
     });
-    
+
     this.ensureMarkersVisible();
   }
 
@@ -2834,8 +2914,9 @@ getIndexMarker(type: string, object: any): number {
   private refreshEventMarkersVisibility() {
     if (!this.map || !this.purpleMarkers) return;
 
-    // Remove event markers that are no longer active
+    // Remove event markers that are no longer active (and not under grace)
     const toRemove: number[] = [];
+    const now = Date.now();
     this.objectpurpleMarkers.forEach((obj: any) => {
       const data = this.purpleMarkers.find((p: any) => p.id === obj.id);
       if (!data) {
@@ -2848,8 +2929,10 @@ getIndexMarker(type: string, object: any): number {
         if (idx >= 0) this.allMarkers.splice(idx, 1);
         return;
       }
+      const evExpiresAt = this.recentlyCreatedEvents.get(this.normalizeId(data.id));
+      const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
       const active = this.checkDates(data, 'none');
-      if (!active) {
+      if (!active && !underGrace) {
         if (obj.object) {
           try { obj.object.remove(); } catch {}
         }
@@ -2862,11 +2945,13 @@ getIndexMarker(type: string, object: any): number {
       this.objectpurpleMarkers = this.objectpurpleMarkers.filter((o: any) => !toRemove.includes(o.id));
     }
 
-    // Add event markers that became active
+    // Add event markers that became active (or are within grace window)
     this.purpleMarkers.forEach((ev: any) => {
+      const evExpiresAt = this.recentlyCreatedEvents.get(this.normalizeId(ev.id));
+      const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
       const isActive = this.checkDates(ev, 'none');
       const exists = this.objectpurpleMarkers.find((o: any) => o.id === ev.id);
-      if (isActive && !exists) {
+      if ((isActive || underGrace) && !exists) {
         const iconUrl = this.getIconForType('event', ev);
         if (!iconUrl) return;
         const newMarker = this.createLeafletMarker(iconUrl, [ev.lat, ev.lng]).addTo(this.map!);
@@ -3042,7 +3127,8 @@ getIndexMarker(type: string, object: any): number {
       const remainingSeconds = remainingMs / 1000;
       markerElement.style.transition = `opacity ${remainingSeconds}s linear`;
       markerElement.style.opacity = '0';
-      markerElement.style.pointerEvents = 'none';
+      // Keep markers clickable while fading; they will be removed at the end
+      markerElement.style.pointerEvents = 'auto';
     }, 50);
 
     // 3. Schedule the final cleanup to remove the marker after the transition ends.
@@ -3338,9 +3424,9 @@ getIndexMarker(type: string, object: any): number {
 
         // Diff-based UI refresh
         this.syncMarkers(data);
-        this.loadPolylines();
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
+        try { this.refreshFading(); } catch {}
         // Update popup content for any SOS popups to reflect latest data
         try { this.refreshSosPopups(); } catch {}
 
@@ -3695,6 +3781,9 @@ getIndexMarker(type: string, object: any): number {
         console.error('Error parsing polyline data for station:', station.id, e);
       }
     });
+
+    // Respect current category filter after (re)drawing polylines
+    try { this.updatePolylineVisibilityForFilter(); } catch {}
   }
 
   savePolylines() {
@@ -3723,6 +3812,8 @@ getIndexMarker(type: string, object: any): number {
           this.polylines.push({ id: String(stationId), polyline });
         }
       });
+      // Ensure visibility matches current filter state
+      try { this.updatePolylineVisibilityForFilter(); } catch {}
     } catch (e) {
       console.error('Failed to render station polyline from JSON for station', stationId, e);
     }
@@ -4331,6 +4422,8 @@ getIndexMarker(type: string, object: any): number {
           // Immediately and efficiently remove the marker from the UI 
           // without doing a slow, full data refresh.
           this.removeMarkerFromUI(deleteData.id, deleteData.type);
+          // Suppress this id temporarily so a late realtime fetch can't re-add it
+          this.suppressedPointIds.add(this.normalizeId(deleteData.id));
           // If it's a station, also remove any dashed/solid queue polylines from UI
           if (deleteData.type === 'green') {
             // Centralized, thorough cleanup in one pass
@@ -4666,6 +4759,9 @@ getIndexMarker(type: string, object: any): number {
         if (this.map) {
           this.greenProgressLine.addTo(this.map);
         }
+
+        // Ensure it respects the current category filter (hide unless 'station' is active)
+        try { this.updatePolylineVisibilityForFilter(); } catch {}
 
         console.log(`Queue visualization updated with ${positions.length} positions`);
       },

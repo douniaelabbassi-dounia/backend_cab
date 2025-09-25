@@ -24,9 +24,9 @@
         <div class="mt-1 w-full">
           <label class="montserrat-600 text-[13px]">Photo de profil</label>
           <div class="mt-1 flex items-center">
-            <div class="w-[18vw]">
-              <img class="rounded-2xl"
-                [src]="profilInfo.image?.url ? URL + 'storage/' + profilInfo.image.url : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
+            <div class="w-[72px] h-[72px] rounded-full overflow-hidden flex-shrink-0">
+              <img class="w-full h-full object-cover"
+                [src]="profilInfo.image?.url ? imageSrc(profilInfo.image.url) : 'https://media.istockphoto.com/id/1327592506/vector/default-avatar-photo-placeholder-icon-grey-profile-picture-business-man.jpg?s=612x612&w=0&k=20&c=BpR0FVaEa5F24GIw7K8nMWiiGmbb8qmhfkpXcp1dhQg='" />
             </div>
             <div class="px-3">
               <div>
@@ -40,7 +40,7 @@
                 </button>
               </div>
               <div>
-                <span class="montserrat-400 text-[10px] font-light text-[#2D3748]">Largeur 300px ☓ Hauteur 300px</span>
+                <span class="montserrat-400 text-[10px] font-light text-[#2D3748]">Tout format accepté — redimensionné automatiquement</span>
               </div>
             </div>
           </div>
@@ -91,8 +91,8 @@
                 <div class="flex items-center overflow-hidden rounded">
                   <a [routerLink]="'/profil/' + amis?.id">
                     <img
-                      [src]="amis?.user?.image?.url ? URL + 'storage/' + amis?.user?.image?.url : 'https://media.istockphoto.com/default-avatar.jpg'"
-                      alt="{{ amis?.user?.firstName }}" class="h-full w-full">
+                      [src]="amis?.user?.image?.url ? imageSrc(amis?.user?.image?.url) : 'https://media.istockphoto.com/default-avatar.jpg'"
+                      alt="{{ amis?.user?.firstName }}" class="w-full h-full object-cover">
                   </a>
                 </div>
                 <div class="w-full text-center">

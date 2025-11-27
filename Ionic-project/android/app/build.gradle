@@ -27,12 +27,15 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    // Customize APK file name to include build variant and today's date (dd-MM)
+    // Customize APK file name while keeping Capacitor tooling compatibility for debug builds
     applicationVariants.all { variant ->
         variant.outputs.all { output ->
-            def today = new Date().format('dd-MM')
-            def baseName = "Cabsul-${variant.name}-${today}.apk"
-            outputFileName = baseName
+            def buildType = variant.buildType.name?.toLowerCase()
+            if (buildType == "release") {
+                outputFileName = "Cabsul.apk"
+            } else {
+                outputFileName = "app-${buildType}.apk"
+            }
         }
     }
 }

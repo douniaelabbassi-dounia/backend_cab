@@ -9,8 +9,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class NotePoint extends Model
 {
     use HasFactory, SoftDeletes;
-    
+
     protected $table = 'note_points';
+
+    protected $fillable = [
+        'pointId',
+        'name',
+        'lieu',
+        'type',
+        'dates',
+        'heureDebut',
+        'heureFin',
+        'commentaire',
+        'visibility'
+    ];
 
     function point() {
         return $this->belongsTo(Point::class);

@@ -46,6 +46,7 @@
   // Protected routes (require authentication)
   Route::middleware(['auth:sanctum'])->group(function () {
       Route::get('/profile', [AuthController::class, 'profile']);
+      Route::post('/profile/image/update', [AuthController::class, 'updateProfileImage']);
 
       // point apis
       Route::get('/points/all', [PointController::class, 'getAllPoints']);

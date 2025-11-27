@@ -241,6 +241,9 @@ class AuthController extends Controller
                 $user = auth()->user()->load('friends.user.image');
                 $role = $user->role;
                 $user->image;
+                if ($user->image && $user->image->url) {
+                    $user->image->url = asset('storage/' . ltrim($user->image->url, '/'));
+                }
                 
                 if($role->role_name == "chauffeur"){
                     $user->chauffeur;
@@ -278,6 +281,40 @@ class AuthController extends Controller
         return $status === \Password::RESET_LINK_SENT
                     ? response()->json(['message' => 'Reset link sent to your email.'], 200)
                     : response()->json(['error' => 'Unable to send reset link'], 400);
+    }
+
+    public function updateProfileImage(Request $request)
+    {
+        try {
+            $request->validate([
+                'image' => 'required|string'
+            ]);
+
+            $user = auth()->user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
+
+            $image = $this->_uploadImage($request->image, 'image');
+            if (!$image) {
+                return response()->json(['message' => 'Invalid image data'], 400);
+            }
+
+            // Optionally: clean up previous image file/record.
+            // For minimal change, just re-point to the new image_id.
+            $user->image_id = $image->id;
+            $user->save();
+
+            $user = $user->fresh()->load('image');
+            if ($user->image && $user->image->url) {
+                $user->image->url = asset('storage/' . ltrim($user->image->url, '/'));
+            }
+            return response()->json($user, 200);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            return response()->json(['message' => 'Bad Request', 'errors' => $ve->errors()], 400);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'error from server : '. $e->getMessage()], 500 );
+        }
     }
 
     function friends() {

@@ -34,7 +34,13 @@ class PointController extends Controller
             DB::beginTransaction();
 
             $point = new Point();
-            $point->name = $request->name;
+            // Ensure name is never null and max 50 chars for notes
+            if ($request->typePoint == 'note') {
+                $name = $request->name ?: ($request->lieu ? explode(',', $request->lieu)[0] : 'Mémo');
+                $point->name = substr($name, 0, 50);
+            } else {
+                $point->name = $request->name;
+            }
             $point->address = $request->address;
             $point->lat = $request->lat;
             $point->lng = $request->lng;
@@ -72,6 +78,14 @@ class PointController extends Controller
                 $user->pointDuration+=10;
             }
             else if ($request->typePoint == 'note') {
+                // Debug logging for time format
+                \Log::info('[BACKEND] Received note creation request', [
+                    'heureDebut' => $request->heureDebut,
+                    'heureFin' => $request->heureFin,
+                    'heureDebutLength' => strlen($request->heureDebut ?? ''),
+                    'heureDebutType' => gettype($request->heureDebut)
+                ]);
+
                 $otherpoint = new NotePoint();
                 $otherpoint->pointId = $point->id;
                 $otherpoint->name = $request->destination;
@@ -80,6 +94,14 @@ class PointController extends Controller
                 $selectedDays = is_array($request->selectedDays) ? $request->selectedDays : [$request->selectedDays];
                 $otherpoint->dates = implode(",", $selectedDays);
                 $otherpoint->heureDebut = $request->heureDebut;
+                $otherpoint->heureFin = $request->heureFin;
+
+                // Debug logging after assignment
+                \Log::info('[BACKEND] Before save', [
+                    'heureDebut' => $otherpoint->heureDebut,
+                    'heureFin' => $otherpoint->heureFin
+                ]);
+                $otherpoint->visibility = $request->friendsSelector ?? 'personne'; // 'personne' or 'all'
                 $check = 'note';
                 $user->pointDuration+=10;
             } else if($request->typePoint == 'event'){
@@ -146,11 +168,25 @@ class PointController extends Controller
         $stationPoint = [];
         $notePoint = [];
         $jaunePoint = [];
-    
+
+        // Get current authenticated user and their friends
+        $currentUser = auth()->user();
+        $friendIds = [];
+        if ($currentUser) {
+            // Get all friends where share_note is true and status is 'following'
+            $friendIds = \DB::table('friends')
+                ->where('user_id', $currentUser->id)
+                ->where('share_note', true)
+                ->where('status', 'following')
+                ->whereNull('deleted_at')
+                ->pluck('friend_id')
+                ->toArray();
+        }
+
         foreach ($points as $el) {
             $likes = $el->feedback->where('feedback', 'like')->count();
             $dislikes = $el->feedback->where('feedback', 'dislike')->count();
-    
+
             switch ($el->typePoint) {
                 case 'event':
                     // BUG FIX: Per client request, show ALL events regardless of their start/end time.
@@ -166,15 +202,43 @@ class PointController extends Controller
                     }
                     break;
                 case 'note':
-                    if ($el->note) {
-                        array_push($notePoint, [
-                            "id" => $el->id, "lieu" => $el->note->lieu, "type" => $el->note->type, "date" => $el->note->dates, "heureDebut" => $el->note->heureDebut, "level" => $el->note->level, "name" => $el->note->name, "lat" =>  $el->lat, "lng" =>  $el->lng,
-                            "userId" => $el->user ? $el->user->id : null,
-                            "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
-                            "like" => $likes, "dislike" => $dislikes, "object" =>  null,
-                            "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
-                            "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
-                        ]);
+                    if ($el->note && $currentUser) {
+                        $noteUserId = $el->user ? $el->user->id : null;
+                        $visibility = $el->note->visibility ?? 'personne';
+
+                        // Determine if current user should see this note
+                        $canView = false;
+
+                        // 1. User created the note
+                        if ($noteUserId === $currentUser->id) {
+                            $canView = true;
+                        }
+                        // 2. Note is shared with all friends AND current user is a friend of the creator
+                        elseif ($visibility === 'all' && in_array($noteUserId, $friendIds)) {
+                            $canView = true;
+                        }
+
+                        if ($canView) {
+                            $noteData = [
+                                "id" => $el->id, "lieu" => $el->note->lieu, "type" => $el->note->type, "date" => $el->note->dates, "heureDebut" => $el->note->heureDebut, "heureFin" => $el->note->heureFin, "level" => $el->note->level, "name" => $el->note->name, "lat" =>  $el->lat, "lng" =>  $el->lng,
+                                "userId" => $noteUserId,
+                                "username" => $el->user ? ($el->user->firstName . " " . $el->user->lastName) : 'Utilisateur inconnu',
+                                "like" => $likes, "dislike" => $dislikes, "object" =>  null,
+                                "role" => $el->user && $el->user->role ? $el->user->role->role_name : 'Role inconnu',
+                                "visibility" => $visibility,
+                                "created_at" => $el->created_at->toIso8601String(), "updated_at" => $el->updated_at->toIso8601String()
+                            ];
+
+                            // Debug logging for API response
+                            \Log::info('[BACKEND] Returning note in API', [
+                                'noteId' => $el->id,
+                                'heureDebut' => $el->note->heureDebut,
+                                'heureFin' => $el->note->heureFin,
+                                'heureDebutLength' => strlen($el->note->heureDebut ?? ''),
+                            ]);
+
+                            array_push($notePoint, $noteData);
+                        }
                     }
                     break;
                 case 'green':
@@ -330,10 +394,15 @@ class PointController extends Controller
                     $relatedPoint = $point->note;
                     $relatedPoint->name = $request->name;
                     $relatedPoint->lieu = $request->lieu;
-                    $relatedPoint->type = $request->type;
+                    if ($request->has('noteType')) {
+                        $relatedPoint->type = $request->noteType;
+                    }
                     $relatedPoint->dates = $request->date;
                     $relatedPoint->heureDebut = $request->heureDebut;
                     $relatedPoint->heureFin = $request->heureFin;
+                    if ($request->has('friendsSelector')) {
+                        $relatedPoint->visibility = $request->friendsSelector;
+                    }
                     break;
 
                 default:
@@ -348,11 +417,16 @@ class PointController extends Controller
                     break;
             }
 
-            // Update main point if needed
-            if ($request->has('name')) {
-                $point->name = $request->name;
-            }
-            if ($request->has('address')) {
+                    // Update main point if needed
+                    if ($request->has('name')) {
+                        if ($request->type == 'note') {
+                            // Use fallback logic for note name to prevent saving an empty string, which matches creation logic.
+                            $name = $request->name ?: ($request->lieu ? explode(',', $request->lieu)[0] : 'Mémo');
+                            $point->name = substr($name, 0, 50);
+                        } else {
+                            $point->name = $request->name;
+                        }
+                    }            if ($request->has('address')) {
                 $point->address = $request->address;
             }
             if ($request->has('lat')) {

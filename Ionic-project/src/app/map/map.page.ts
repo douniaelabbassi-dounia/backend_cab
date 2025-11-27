@@ -103,7 +103,9 @@ export class MapPage implements OnInit, OnDestroy {
   objectblueMarkers: any[] = [];
   objectgreenMarkers: any[] = [];
   private affluenceTimers: { [pointId: number]: any } = {};
+  private eventExpiryTimers: { [pointId: number]: any } = {};
   private hasRenderedOnce: boolean = false;
+  private attachedListeners: Map<string, boolean> = new Map(); // Track attached event listeners
   objectjauneMarkers: any[] = [];
   objectpurpleMarkers: any[] = [];
   objectredMarkers: any[] = [];
@@ -130,6 +132,7 @@ export class MapPage implements OnInit, OnDestroy {
   private permissionState: 'granted' | 'denied' | 'prompt' | 'unknown' = 'unknown';
   private isGpsPermissionPromptOpen: boolean = false;
   showGpsModal: boolean = false;
+  private savedMapView: { center: L.LatLng; zoom: number } | null = null;
 
   // list of all object of all points type
   oldPosition: { lat: number; lon: number } = {
@@ -166,7 +169,7 @@ export class MapPage implements OnInit, OnDestroy {
   };
 
   showOnboarding: string | null = null;
-  skipedPub: string | null = '0';
+  skipedPub: string | null = localStorage.getItem('skipPub') || '0';
 
   // gps part
   userPosition: { lat: string | number; long: string | number } = {
@@ -226,8 +229,17 @@ export class MapPage implements OnInit, OnDestroy {
   private pendingDisableIds: Set<number> = new Set();
   private disableDebounceTimer: any = null;
   private alreadyDisabledIds: Set<number> = new Set();
-  // Keep newly created notes visible for a short grace period even if outside time window
-  private recentlyCreatedNotes: Map<number, number> = new Map();
+  private readonly dayAliasForDisplay: Record<string, string> = {
+    '0': 'Dim', '7': 'Dim', 'dim': 'Dim', 'dimanche': 'Dim', 'sun': 'Dim', 'sunday': 'Dim',
+    '1': 'Lun', 'lun': 'Lun', 'lundi': 'Lun', 'mon': 'Lun', 'monday': 'Lun',
+    '2': 'Mar', 'mar': 'Mar', 'mardi': 'Mar', 'tue': 'Mar', 'tuesday': 'Mar',
+    '3': 'Mer', 'mer': 'Mer', 'mercredi': 'Mer', 'wed': 'Mer', 'wednesday': 'Mer',
+    '4': 'Jeu', 'jeu': 'Jeu', 'jeudi': 'Jeu', 'thu': 'Jeu', 'thursday': 'Jeu',
+    '5': 'Ven', 'ven': 'Ven', 'vendredi': 'Ven', 'fri': 'Ven', 'friday': 'Ven',
+    '6': 'Sam', 'sam': 'Sam', 'samedi': 'Sam', 'sat': 'Sam', 'saturday': 'Sam',
+    '*': '*'
+  };
+  private readonly dayDisplayOrder = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   // Grace window for newly created events to ensure they render immediately
   private recentlyCreatedEvents: Map<number, number> = new Map();
   // Realtime refresh state
@@ -268,7 +280,6 @@ export class MapPage implements OnInit, OnDestroy {
     // --- LOGIN GUARD ---
     const token = localStorage.getItem('apiToken');
     if (!token) {
-      console.log("No token found, redirecting to login.");
       this.router.navigate(['/sign-in']);
       return; // Stop execution if not authenticated
     }
@@ -277,7 +288,6 @@ export class MapPage implements OnInit, OnDestroy {
     try {
       if (this.skipedPub === '1') {
         this.skipedPub = localStorage.getItem('skipPub');
-        console.log(this.skipedPub);
       }
       this.displayer.menuDisplay = false;
       // Clear any category filters to ensure all markers are visible upon return
@@ -292,7 +302,6 @@ export class MapPage implements OnInit, OnDestroy {
       // Points will be fetched after map loads - see map 'load' event handler
 
       if (user && user.pointDuration > 0) {
-        console.log("point duration is bigger than 0");
         // Ensure we don't create multiple timers. Clear the old one first.
         if (this.MarkerTimer) clearInterval(this.MarkerTimer);
         this.MarkerTimer = setInterval(() => this.getAllPoint(), 300000); // 5 minutes
@@ -304,7 +313,6 @@ export class MapPage implements OnInit, OnDestroy {
       // Always refresh points when entering the map to reflect recent edits (e.g., SOS updates)
       try { this.getAllPoint(); } catch {}
     } catch (error) {
-      console.error("An error occurred in ionViewWillEnter:", error);
     }
   }
 
@@ -323,6 +331,25 @@ export class MapPage implements OnInit, OnDestroy {
     // Reset centering flag each time view enters
     this.hasCenteredOnUser = false;
     this.initializeMap();
+
+    // Restore map view if saved
+    if (this.savedMapView && this.map) {
+      setTimeout(() => {
+        if (this.map && this.savedMapView) {
+          this.map.setView(this.savedMapView.center, this.savedMapView.zoom, { animate: false });
+        }
+      }, 100);
+    }
+  }
+
+  ionViewWillLeave() {
+    // Save current map view before leaving
+    if (this.map) {
+      this.savedMapView = {
+        center: this.map.getCenter(),
+        zoom: this.map.getZoom()
+      };
+    }
   }
 
   private async checkGpsPermissionFlow() {
@@ -368,7 +395,6 @@ export class MapPage implements OnInit, OnDestroy {
         }
       }
     } catch (e) {
-      console.warn('GPS permission check failed, showing modal as fallback', e);
       if (!this.isGpsPermissionPromptOpen) this.showGpsModal = true;
     }
   }
@@ -418,7 +444,6 @@ export class MapPage implements OnInit, OnDestroy {
         if (this.map) {
           this.map.invalidateSize();
         }
-        console.log('after timeout invalidate size');
       }, 600);
     }
   }
@@ -439,15 +464,22 @@ export class MapPage implements OnInit, OnDestroy {
         );
 
         this.map = L.map(this.mapContainer.nativeElement, {
-          worldCopyJump: false
+          worldCopyJump: false,
+          maxBounds: this.franceBounds,         // keep the view inside France
+          maxBoundsViscosity: 1.0               // strong resistance at the edges
         }).fitBounds(this.franceBounds);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          noWrap: true                           // prevent repeating the world outside bounds
         }).addTo(this.map);
 
+        // Stronger zoom-out limit: do not allow zooming out beyond initial fit
+        const initialZoom = this.map.getZoom();
+        const minZoom = Math.max(4, initialZoom); // clamp at initial fit (>=4 for safety)
+        this.map.setMinZoom(minZoom);
+
         this.map.on('load', () => {
-          console.log('Map loaded successfully');
           // Add small delay to ensure tiles are fully rendered before adding markers
           setTimeout(() => {
             this.map?.invalidateSize();
@@ -509,7 +541,6 @@ export class MapPage implements OnInit, OnDestroy {
         }, 500);
 
       } catch (error) {
-        console.error('Error initializing map:', error);
         setTimeout(() => this.loadMap(), 1000);
       }
     } else {
@@ -571,12 +602,10 @@ export class MapPage implements OnInit, OnDestroy {
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5&accept-language=fr&countrycodes=fr&bounded=1&viewbox=${left},${top},${right},${bottom}`
           );
           this.suggestions = response.data;
-          console.log("OSM API content:", JSON.stringify(this.suggestions));
           if (!Array.isArray(this.suggestions) || this.suggestions.length === 0) {
             presentToast("Ce lieu n'existe pas en France", 'bottom', 'warning');
           }
         } catch (error: any) {
-          console.error('Error fetching address suggestions:', error);
         }
       }, 400); // 500ms debounce delay
     } else {
@@ -608,7 +637,6 @@ export class MapPage implements OnInit, OnDestroy {
 
   // onMapHold for Mapbox
   private onMapHold(e: L.LeafletMouseEvent) {
-    console.log('onMapHold triggered at:', e.latlng);
     
     this.justHeld = true;
     this.selectedPosi = e.latlng;
@@ -627,7 +655,6 @@ export class MapPage implements OnInit, OnDestroy {
     }) }).addTo(this.map!);
     this.heldMarker = this.grayMarker; // sync the variables
     this.markergray = true; // set flag to true
-    console.log('Gray marker created successfully - now you can select a button for the action');
   }
 
   // Method to handle simple click and remove the marker
@@ -658,7 +685,6 @@ export class MapPage implements OnInit, OnDestroy {
       }
       this.markergray = false;
       this.selectedPosi = undefined;
-      console.log('Gray marker removed on tap');
     }
   }
 
@@ -698,6 +724,34 @@ export class MapPage implements OnInit, OnDestroy {
     });
 
     return L.marker(latLng, { icon: customIcon });
+  }
+
+  private tagMarker(marker: L.Marker, pointId: any, type: string) {
+    (marker as any).pointId = this.normalizeId(pointId);
+    (marker as any).pointType = type;
+  }
+
+  private inferMarkerType(pointId: any): string | null {
+    const normalizedId = this.normalizeId(pointId);
+    if (!normalizedId || normalizedId < 0) {
+      return null;
+    }
+
+    const collections: Array<{ type: string; items: any[] }> = [
+      { type: 'red', items: this.objectredMarkers || [] },
+      { type: 'green', items: this.objectgreenMarkers || [] },
+      { type: 'jaune', items: this.objectjauneMarkers || [] },
+      { type: 'note', items: this.objectblueMarkers || [] },
+      { type: 'event', items: this.objectpurpleMarkers || [] },
+    ];
+
+    for (const { type, items } of collections) {
+      if (!Array.isArray(items)) continue;
+      const found = items.some((entry: any) => this.normalizeId(entry?.id) === normalizedId);
+      if (found) return type;
+    }
+
+    return null;
   }
 
   pubClick() {
@@ -781,21 +835,20 @@ export class MapPage implements OnInit, OnDestroy {
           }
           break;
 
-     case 'sos':
-       const lat = parseFloat(localStorage.getItem('lat') || '');
-       const long = parseFloat(localStorage.getItem('long') || '');
+      case 'sos':
+        const lat = parseFloat(localStorage.getItem('lat') || '');
+        const long = parseFloat(localStorage.getItem('long') || '');
 
-       if (this.markergray === true) {
-         presentToast('Le point SOS peut être ajouté selon la géolocalisation', 'bottom', 'danger');
-       }
+        if (this.markergray === true) {
+          presentToast('Le point SOS peut être ajouté selon la géolocalisation', 'bottom', 'danger');
+        }
 
-       if (lat !== undefined && long !== undefined && this.markergray === false) {
-         this.displayer.sosDisplay = !this.displayer.sosDisplay;
-         console.log("sosDisplay après toggle:", this.displayer.sosDisplay);
-       } else {
-         presentToast('Le point SOS peut être ajouté selon la géolocalisation', 'bottom', 'danger');
-       }
-       break;
+        if (lat !== undefined && long !== undefined && this.markergray === false) {
+          this.displayer.sosDisplay = !this.displayer.sosDisplay;
+        } else {
+          presentToast('Le point SOS peut être ajouté selon la géolocalisation', 'bottom', 'danger');
+        }
+        break;
 
       case 'autre':
         this.displayer.autreDisplay = !this.displayer.autreDisplay;
@@ -818,7 +871,6 @@ export class MapPage implements OnInit, OnDestroy {
         this.displayer.editPointConfirmation = !this.displayer.editPointConfirmation;
         break;
       default:
-        console.log('action not exist !');
         break;
     }
   }
@@ -836,13 +888,11 @@ export class MapPage implements OnInit, OnDestroy {
 
   setValue(newValue: string) {
     this.timeValue = this.formaTime(newValue);
-    console.log('( heureDebut ) outside of the component : ' + this.timeValue.hour + ":" + this.timeValue.min);
     this.showTimePickerModal = false;
   }
 
   updateTimeValue(newValue: string) {
     this.currentTime = newValue;
-    console.log(this.currentTime);
   }
 
   submitTime() {
@@ -859,7 +909,6 @@ export class MapPage implements OnInit, OnDestroy {
       this.currentTime = formattedDate;
     }
     this.timeValue = this.formaTime(this.currentTime);
-    console.log('( heureDebut ) outside of the component : ' + this.timeValue.hour + ":" + this.timeValue.min);
     this.showTimePickerModal = false;
   }
 
@@ -901,7 +950,6 @@ export class MapPage implements OnInit, OnDestroy {
 
   // // clear Map (openStreetMap)
   clearMap() {
-    console.log("Start clearing the map");
     let markers = [
       ...this.blueMarkers,
       ...this.redMarkers,
@@ -1127,17 +1175,9 @@ export class MapPage implements OnInit, OnDestroy {
     this.isFetchingPoints = true;
     this.pointService.$getPoints().subscribe(
       (data: any) => {
-        console.log('data all points', data);
         // --- FIX START: Replace full redraw with an intelligent sync logic ---
         // This new logic will add/remove markers without destroying existing ones,
         // which preserves the smooth opacity animation for affluence points.
-
-        // Update local data caches first
-        this.redMarkers = data.red;
-        this.greenMarkers = data.green;
-        this.blueMarkers = data.note;
-        this.jauneMarkers = data.sos;
-        this.purpleMarkers = data.event;
 
         // Sync all marker types with the new data
         this.syncMarkers(data);
@@ -1145,6 +1185,9 @@ export class MapPage implements OnInit, OnDestroy {
         // Ensure periodic check for event visibility
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
+
+        try { this.refreshEventMarkersVisibility(); } catch {}
+        try { this.refreshNoteMarkersVisibility(); } catch {}
 
         // Restart fading timers for affluence points to guarantee visibility after navigation
         try { this.refreshFading(); } catch {}
@@ -1171,6 +1214,12 @@ export class MapPage implements OnInit, OnDestroy {
           }
           try { localStorage.removeItem('justUpdatedSosId'); } catch {}
         }
+
+        // Cleanup persisted flag from note edit flow (no grace period)
+        const updatedNoteIdStr = localStorage.getItem('justUpdatedNoteId');
+        if (updatedNoteIdStr) {
+          try { localStorage.removeItem('justUpdatedNoteId'); } catch {}
+        }
         // --- END: New logic ---
 
         // Ensure all markers are properly rendered after loading without forcing a full rebuild
@@ -1189,7 +1238,6 @@ export class MapPage implements OnInit, OnDestroy {
       this.isFetchingPoints = false;
       },
       (err) => {
-        console.error('Error fetching all points:', JSON.stringify(err, null, 2));
         this.isFetchingPoints = false;
         // Also invalidate on error to ensure map is properly rendered
         setTimeout(() => {
@@ -1197,10 +1245,207 @@ export class MapPage implements OnInit, OnDestroy {
         }, 200);
       }
     );
-    console.log("")
   }
 
   // --- FIX: New marker synchronization logic ---
+  private normalizeNoteScheduleDays(note: any): { wildcard: boolean; hasAny: boolean; days: Set<string> } {
+    const collected = new Set<string>();
+    let wildcard = false;
+    let hasAny = false;
+
+    const pushToken = (token: any) => {
+      if (token === undefined || token === null) {
+        return;
+      }
+      let text = `${token}`.trim();
+      if (!text) {
+        return;
+      }
+      const lower = text.toLowerCase();
+      if (lower === '*' || lower === 'tous' || lower === 'tous les jours' || lower === 'all' || lower === 'everyday' || lower === 'every day') {
+        wildcard = true;
+        hasAny = true;
+        return;
+      }
+      const alias = this.dayAliasForDisplay[lower];
+      if (alias && alias !== '*') {
+        collected.add(alias);
+        hasAny = true;
+        return;
+      }
+      const numeric = parseInt(lower, 10);
+      if (!Number.isNaN(numeric)) {
+        const normalized = numeric === 7 ? 0 : numeric;
+        if (normalized >= 0 && normalized <= 6) {
+          const numericOrder = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+          collected.add(numericOrder[normalized]);
+          hasAny = true;
+        }
+        return;
+      }
+      const segments = lower.split(/\s+/).filter(Boolean);
+      if (segments.length > 1) {
+        segments.forEach(segment => pushToken(segment));
+        return;
+      }
+      if (/^[a-z]{3}$/i.test(lower)) {
+        const abbrevAlias = this.dayAliasForDisplay[lower];
+        if (abbrevAlias && abbrevAlias !== '*') {
+          collected.add(abbrevAlias);
+          hasAny = true;
+        }
+      }
+    };
+
+    const pushFromSource = (source: any) => {
+      if (source === undefined || source === null) {
+        return;
+      }
+      if (Array.isArray(source)) {
+        source.forEach(entry => pushToken(entry));
+        return;
+      }
+      if (typeof source === 'string') {
+        const trimmed = source.trim();
+        if (!trimmed) {
+          return;
+        }
+        if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(entry => pushToken(entry));
+              return;
+            }
+          } catch {}
+        }
+        trimmed.split(/[;,]/).map(part => part.trim()).filter(Boolean).forEach(part => pushToken(part));
+        return;
+      }
+      if (typeof source === 'number') {
+        pushToken(source);
+      }
+    };
+
+    [
+      note?.selectedDays,
+      note?.selected_days,
+      note?.selecteddays,
+      note?.selected_days_json,
+      note?.jours,
+      note?.jour,
+      note?.days,
+      note?.day,
+      note?.dates,
+      note?.date,
+      note?.schedule,
+      note?.scheduledDays
+    ].forEach(pushFromSource);
+
+    return { wildcard, hasAny, days: collected };
+  }
+
+  private extractNoteTimeValue(note: any, keys: string[]): string | null {
+    for (const key of keys) {
+      const raw = note ? note[key] : undefined;
+      if (raw === undefined || raw === null) {
+        continue;
+      }
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed) {
+          return trimmed;
+        }
+      } else if (typeof raw === 'number') {
+        const padded = `${raw}`.padStart(2, '0');
+        return `${padded}:00`;
+      }
+    }
+    return null;
+  }
+
+  private parseNoteTimeString(raw: string | null): { hour: number; minute: number } | null {
+    if (!raw) {
+      return null;
+    }
+    let value = raw.trim();
+    if (!value) {
+      return null;
+    }
+    value = value.replace(/\s+/g, '');
+    if (/^\d{1,2}h\d{1,2}$/.test(value)) {
+      value = value.replace('h', ':');
+    } else if (/^\d{1,2}h$/.test(value)) {
+      value = value.replace('h', ':00');
+    } else if (/^\d{1,2}$/.test(value)) {
+      value = `${value}:00`;
+    }
+    value = value.replace('.', ':').replace(',', ':');
+    const parts = value.split(':');
+    if (parts.length < 2) {
+      return null;
+    }
+    const hour = parseInt(parts[0], 10);
+    const minute = parseInt(parts[1], 10);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) {
+      return null;
+    }
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      return null;
+    }
+    return { hour, minute };
+  }
+
+  private buildNoteTimeWindow(note: any, reference: Date): { start: number; end: number } | null {
+    const startRaw = this.extractNoteTimeValue(note, ['heureDebut', 'heure_debut', 'timeStart', 'startTime', 'heure', 'start_time', 'start']);
+    const startParsed = this.parseNoteTimeString(startRaw);
+    if (!startParsed) {
+      return null;
+    }
+    const start = new Date(reference);
+    start.setHours(startParsed.hour, startParsed.minute, 0, 0);
+
+    const endRaw = this.extractNoteTimeValue(note, ['heureFin', 'heure_fin', 'timeEnd', 'endTime', 'end_time', 'heurefin', 'heureFinReel']);
+    const endParsed = this.parseNoteTimeString(endRaw);
+    const bufferMs = 15 * 60 * 1000;
+
+    if (!endParsed) {
+      return {
+        start: start.getTime() - bufferMs,
+        end: start.getTime() + bufferMs
+      };
+    }
+
+    const end = new Date(start);
+    end.setHours(endParsed.hour, endParsed.minute, 0, 0);
+    if (end.getTime() < start.getTime()) {
+      end.setTime(end.getTime() + 24 * 60 * 60 * 1000);
+    }
+    return {
+      start: start.getTime() - bufferMs,
+      end: end.getTime() + bufferMs
+    };
+  }
+
+  private computeNoteVisibility(note: any, reference: Date): boolean {
+    if (!note) {
+      return false;
+    }
+    const schedule = this.normalizeNoteScheduleDays(note);
+    if ((schedule.hasAny || schedule.wildcard) && !schedule.wildcard) {
+      const todayAlias = this.dayAliasForDisplay[String(reference.getDay())];
+      if (!todayAlias || !schedule.days.has(todayAlias)) {
+        return false;
+      }
+    }
+    const window = this.buildNoteTimeWindow(note, reference);
+    if (!window) {
+      return false;
+    }
+    const nowMs = reference.getTime();
+    return nowMs >= window.start && nowMs <= window.end;
+  }
+
   private syncMarkers(data: any) {
     const rawData = {
       red: data.red || [],
@@ -1211,7 +1456,7 @@ export class MapPage implements OnInit, OnDestroy {
     };
 
     // If backend still returns a just-deleted point, suppress it locally to avoid flicker
-    const newPointsData = {
+    const filteredData = {
       red: rawData.red.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
       green: rawData.green.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
       blue: rawData.blue.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
@@ -1219,37 +1464,67 @@ export class MapPage implements OnInit, OnDestroy {
       event: rawData.event.filter((p: any) => !this.suppressedPointIds.has(this.normalizeId(p.id))),
     };
 
-    const allNewIds = new Set([].concat(...Object.values(newPointsData)).map((p: any) => p.id));
-    const allRawIds = new Set([].concat(...Object.values(rawData)).map((p: any) => p.id));
-    const allExistingIds = new Set(this.allMarkers.map((m: any) => m.pointId));
+    const now = Date.now();
+    filteredData.event = filteredData.event.filter((ev: any) => {
+      const normalizedId = this.normalizeId(ev.id);
+      const graceUntil = this.recentlyCreatedEvents.get(normalizedId);
+      const underGrace = typeof graceUntil === 'number' && now < graceUntil;
+      return underGrace || this.isEventActiveNow(ev, now);
+    });
+
+    // Update local caches with sanitized payloads so auxiliary logic works with fresh data
+    this.redMarkers = [...filteredData.red];
+    this.greenMarkers = [...filteredData.green];
+    this.blueMarkers = [...filteredData.blue];
+    this.jauneMarkers = [...filteredData.jaune];
+    this.purpleMarkers = [...filteredData.event];
+
+
+    const allNewIds = new Set([].concat(...Object.values(filteredData)).map((p: any) => this.normalizeId(p.id)));
+    const allRawIds = new Set([].concat(...Object.values(rawData)).map((p: any) => this.normalizeId(p.id)));
+    let allExistingIds = new Set(this.allMarkers.map((m: any) => this.normalizeId((m as any).pointId)));
+
+    const newIdsByType: Record<string, Set<number>> = {
+      red: new Set(filteredData.red.map((p: any) => this.normalizeId(p.id))),
+      green: new Set(filteredData.green.map((p: any) => this.normalizeId(p.id))),
+      jaune: new Set(filteredData.jaune.map((p: any) => this.normalizeId(p.id))),
+      event: new Set(filteredData.event.map((p: any) => this.normalizeId(p.id))),
+      note: new Set(filteredData.blue.map((p: any) => this.normalizeId(p.id))),
+      blue: new Set(filteredData.blue.map((p: any) => this.normalizeId(p.id))),
+    };
 
     // 1. REMOVE STALE MARKERS
-    // Markers that exist on the map but are not in the new data payload
+    // Markers that exist on the map but are not in the new data payload for their type
     this.allMarkers = this.allMarkers.filter((marker: any) => {
-      const isAffluence = this.objectredMarkers.some(m => m.object === marker);
-      // Affluence markers manage their own removal via timers, so we don't touch them here
-      // unless they are explicitly removed from the backend data.
-      if (!allNewIds.has(marker.pointId) && !isAffluence) {
-        this.removeMarkerFromUI(marker.pointId, ''); // Remove non-affluence stale markers
+      const markerType = (marker as any).pointType || this.inferMarkerType((marker as any).pointId);
+      const markerId = this.normalizeId((marker as any).pointId);
+      const isAffluence = markerType === 'red' && this.objectredMarkers.some(m => this.normalizeId(m.id) === markerId);
+      const newIdsForType = markerType ? newIdsByType[markerType] : null;
+      const shouldKeep = (newIdsForType && newIdsForType.has(markerId)) || (!newIdsForType && allNewIds.has(markerId)) || isAffluence;
+
+      if (!shouldKeep) {
+        this.removeMarkerFromUI(markerId, markerType || '');
         return false;
       }
       return true;
     });
 
+    allExistingIds = new Set(this.allMarkers.map((m: any) => this.normalizeId((m as any).pointId)));
+
     // 2. ADD NEW MARKERS
     // Markers that are in the new data but not yet on the map
     const addNewMarkersForType = (points: any[], type: string) => {
-      const newPoints = points.filter(p => !allExistingIds.has(p.id));
+      const newPoints = points.filter(p => !allExistingIds.has(this.normalizeId(p.id)));
       if (newPoints.length > 0) {
         this.addMarkers(newPoints, type);
       }
     };
 
-    addNewMarkersForType(newPointsData.red, 'red');
-    addNewMarkersForType(newPointsData.green, 'green');
-    addNewMarkersForType(newPointsData.blue, 'blue');
-    addNewMarkersForType(newPointsData.jaune, 'jaune');
-    addNewMarkersForType(newPointsData.event, 'event');
+    addNewMarkersForType(filteredData.red, 'red');
+    addNewMarkersForType(filteredData.green, 'green');
+    addNewMarkersForType(filteredData.blue, 'blue');
+    addNewMarkersForType(filteredData.jaune, 'jaune');
+    addNewMarkersForType(filteredData.event, 'event');
 
     // 3. Final UI Sync
     this.loadPolylines();
@@ -1266,9 +1541,6 @@ export class MapPage implements OnInit, OnDestroy {
 
 
   savePoint(content: any, newMarker: any, type: string) {
-    console.log('content', content);
-    console.log('newMarker', newMarker);
-
     let json: any = null; // Initialize json to null
 
     if (type === 'red') {
@@ -1288,24 +1560,41 @@ export class MapPage implements OnInit, OnDestroy {
       // Award points logic...
     }
     else if (type === 'note') {
+      const rawDestination = content?.destination ?? '';
+      const destination = typeof rawDestination === 'string' ? rawDestination.trim() : '';
+      const normalizedDestination = destination.length > 0 ? destination : null;
+
+      // Extract short name if needed (max 50 chars for database)
+      const baseName = typeof content?.name === 'string' ? content.name.trim() : '';
+      const fallbackName = normalizedDestination ?? (content?.lieu ? content.lieu.split(',')[0].trim() : 'Mémo');
+      const noteName = (baseName || fallbackName || 'Mémo').substring(0, 50);
+
+      const selectedDays = Array.isArray(content?.selectedDays)
+        ? content.selectedDays.map((d: any) => `${d}`.trim()).filter(Boolean)
+        : typeof content?.selectedDays === 'string'
+          ? content.selectedDays.split(',').map((d: string) => d.trim()).filter(Boolean)
+          : [];
+
       json = {
         typePoint: type,
-        name: content.name,
-        destination: content.destination || content.name,
+        name: noteName,
+        destination: normalizedDestination,
         address: content.address,
         lat: content.lat,
         lng: content.lng,
         lieu: content.lieu,
         type: content.type,
-        selectedDays: content.selectedDays || [],
+        selectedDays,
         heureDebut: content.heureDebut || content.heure,
         heureFin: content.heureFin || null,
+        friendsSelector: content.friendsSelector || 'personne',
         like: content.like,
         dislike: content.dislike,
         userId: content.userId,
         username: content.username,
         role: content.role,
       };
+
       // No client-side award for notes per spec
     }
     else if (type === 'green') {
@@ -1367,16 +1656,13 @@ export class MapPage implements OnInit, OnDestroy {
         createDate: new Date(),
       };
       // Event points are awarded on the backend; avoid double-award on client
-      console.log("Saving event point:", json);
     }
     // --- END OF FIX ---
 
     if (json === null) {
-      console.error(`savePoint was called with an unknown type: ${type}`);
       return;
     }
 
-    console.log('Sending to backend:', json);
     this.pointService.$savePoint(json).subscribe(
       (data: any) => {
         if (data && data.done) {
@@ -1387,21 +1673,11 @@ export class MapPage implements OnInit, OnDestroy {
           const payloadKey = pointType === 'jaune' ? 'sos' : pointType;
           const createdList = data && data.point ? data.point[payloadKey] : null;
           if (!Array.isArray(createdList) || createdList.length === 0) {
-            console.warn('Unexpected point payload on create:', data);
             return;
           }
           const newPointData = createdList[0];
 
           this.newPointId = newPointData.id;
-
-          // Track newly created notes for a short grace period
-          if (type === 'note') {
-            const nid = this.normalizeId(newPointData.id);
-            if (nid > 0) {
-              const expiresAt = Date.now() + 300000; // 5 minutes grace
-              this.recentlyCreatedNotes.set(nid, expiresAt);
-            }
-          }
 
           switch (type) {
             case 'green':
@@ -1437,7 +1713,6 @@ export class MapPage implements OnInit, OnDestroy {
         }
       },
       (err) => {
-        console.error('Error saving point:', JSON.stringify(err, null, 2));
         try { if (newMarker && typeof newMarker.remove === 'function') { newMarker.remove(); } } catch {}
       }
     );
@@ -1521,7 +1796,6 @@ getIndexMarker(type: string, object: any): number {
       switch (type) {
         case 'red':
           // ... (this case is correct and does not need changes)
-          console.log('selectedPoint for red value =>: ', this.selectedPoint);
           const iconUrl = this.markerLevel(
             type,
             choice.toString(),
@@ -1588,7 +1862,7 @@ getIndexMarker(type: string, object: any): number {
           const long = localStorage.getItem('long') ? parseFloat(localStorage.getItem('long')!) : (choice?.position?.long || 0);
           if (lat && long) {
             this.selectedPoint = { option: true, position: { lat: lat, long: long }, };
-          } else { console.warn('Latitude and Longitude are missing!'); }
+          } else { }
           if (this.currentMarker) { this.currentMarker.remove(); }
           currentMarker = L.marker([this.selectedPoint.position.lat, this.selectedPoint.position.long], { icon: locationIcon }).addTo(this.map!);
           this.currentMarker = currentMarker;
@@ -1665,7 +1939,6 @@ getIndexMarker(type: string, object: any): number {
           break;
 
         case 'note':
-          console.log('content of note', choice);
           const blueIcon = L.icon({
             iconUrl: '../../assets/icon/markblue.svg',
             iconSize: [44, 44], iconAnchor: [22, 44], popupAnchor: [0, -44]
@@ -1690,16 +1963,23 @@ getIndexMarker(type: string, object: any): number {
           // Do not auto-navigate when creating a note marker
           this.removeMarker();
           let dateIn = new Date();
+          // Extract short name from lieu (first part before comma) if destination is empty
+          const shortName = choice.destination || (choice.lieu ? choice.lieu.split(',')[0].trim() : 'Mémo');
+          const selectedDays = Array.isArray(choice.selectedDays)
+            ? choice.selectedDays.map((day: any) => `${day}`.trim()).filter(Boolean)
+            : [];
+
           let objectN = {
             level: 'point de note marine', address: '----',
             lat: noteLat, lng: noteLng,
             lieu: this.sanitizeLieu(choice.lieu || ''), type: choice.type,
-            name: choice.destination, destination: choice.destination,
-            selectedDays: choice.selectedDays, like: 0, dislike: 0, object: newMarkerBl,
+            name: shortName.substring(0, 50), destination: choice.destination,
+            selectedDays, like: 0, dislike: 0, object: newMarkerBl,
             userId: this.authService.$userinfo.id,
             username: this.authService.$userinfo.firstName + ' ' + this.authService.$userinfo.lastName,
             role: this.authService.$userinfo.role.role_name,
-            heureDebut: choice.heure,
+            heureDebut: choice.heureDebut,
+            friendsSelector: choice.friendsSelector || 'personne',
             date: dateIn.getDate() + '-' + (dateIn.getMonth() + 1) + '-' + dateIn.getFullYear(),
             heure: dateIn.getHours() + ':' + dateIn.getMinutes(),
           };
@@ -1707,7 +1987,6 @@ getIndexMarker(type: string, object: any): number {
           break;
 
         case 'event':
-          console.log('selected choice ', choice);
           let accepted = this.checkDates(choice, 'create');
           if (accepted) {
             
@@ -1791,14 +2070,12 @@ getIndexMarker(type: string, object: any): number {
       setView: false, // we control centering manually on first fix
       maxZoom: 16,
       enableHighAccuracy: true,
-      timeout: 30000,        // 30 seconds timeout instead of default 10s
-      maximumAge: 0          // use freshest position for real-time tracking
+      timeout: 30000,       // 30 seconds timeout instead of default 10s
+      maximumAge: 0         // use freshest position for real-time tracking
     });
 
     const onLocationFound = (e: L.LocationEvent) => {
       const { lat: latitude, lng: longitude } = e.latlng;
-      console.log('Updated Location:', latitude, longitude);
-
       localStorage.setItem('lat', latitude.toString());
       localStorage.setItem('long', longitude.toString());
 
@@ -1810,7 +2087,6 @@ getIndexMarker(type: string, object: any): number {
     }
 
     const onLocationError = (e: L.ErrorEvent) => {
-      console.warn('Location error:', e.message);
       try { this.updatePermissionState(); } catch {}
       if (this.permissionState !== 'granted' && !this.isGpsPermissionPromptOpen) {
         this.showGpsModal = true;
@@ -1822,11 +2098,10 @@ getIndexMarker(type: string, object: any): number {
 
     // Mettre à jour la position toutes les 30 secondes (moins agressif)
     this.positionUpdateInterval = setInterval(() => {
-      console.log("Mise à jour de la position en cours...");
       this.map?.locate({
         enableHighAccuracy: true,
-        timeout: 30000,        // 30 seconds timeout
-        maximumAge: 0          // always request fresh position
+        timeout: 30000,       // 30 seconds timeout
+        maximumAge: 0         // always request fresh position
       });
     }, 30000); // 30 secondes au lieu de 10
     // Continuous tracking: do not auto-stop after 5 minutes
@@ -1847,7 +2122,6 @@ getIndexMarker(type: string, object: any): number {
 
     const onLocationFound = (e: L.LocationEvent) => {
       const { lat: latitude, lng: longitude } = e.latlng;
-      console.log('Manual location found:', latitude, longitude);
       localStorage.setItem('lat', latitude.toString());
       localStorage.setItem('long', longitude.toString());
 
@@ -1870,7 +2144,6 @@ getIndexMarker(type: string, object: any): number {
     };
 
     const onLocationError = (e: L.ErrorEvent) => {
-      console.warn('Manual location error:', e.message);
       // Only show overlay if permission isn't granted and we aren't already showing system prompt
       try { this.updatePermissionState(); } catch {}
       if (this.permissionState !== 'granted' && !this.isGpsPermissionPromptOpen) {
@@ -1920,7 +2193,6 @@ getIndexMarker(type: string, object: any): number {
     if (type == 'red') {
       // --- ADDED FOR DEBUGGING ---
       // Log the inputs to see why the switch might be failing.
-      console.log(`markerLevel('red') inputs: level=${level}, role=${role}`);
 
       if (role == 'chauffeur') {
         if (id == this.authService.$userinfo.id) {
@@ -1974,7 +2246,6 @@ getIndexMarker(type: string, object: any): number {
     // --- THIS IS THE FIX ---
     // If NO condition is met, log a warning and return a default icon path.
     // NEVER return a string that is not a valid URL.
-    console.warn(`markerLevel fell through with type: ${type} and level: ${level}. Returning a default marker.`);
     return '../../assets/icon/markerGray.png'; // Use a default icon you know exists.
   }
 
@@ -2066,9 +2337,12 @@ getIndexMarker(type: string, object: any): number {
         return `<div class="bg-white ring-gray-900/5">
           ${detailsBlock}
           <ion-button id="${'supprimerEvent' + index
-                    }" class="mt-2" size="small" fill="outline" style="--border-color:#EB2F06; --color:#EB2F06; text-transform: none;">Supprimer</ion-button>
-          <ion-button id="${'btnUpdateEvent' + index
-          }" class="mt-2" size="small" fill="outline" style="--border-color:#A259FF; --color:#A259FF; text-transform: none;">Modifier</ion-button>
+              }" class="mt-2" size="small" fill="outline" style="--border-color:#EB2F06; --color:#EB2F06; text-transform: none;">Supprimer</ion-button>
+          <a href="/update-evenement/${content.id}" onclick="event.preventDefault(); window.location.href='/update-evenement/${content.id}';"
+            class="mt-2 inline-flex items-center justify-center px-4 py-2 border-2 rounded-md text-sm font-medium cursor-pointer"
+            style="border-color:#A259FF; color:#A259FF; text-decoration: none; text-transform: none;">
+            Modifier
+          </a>
 
         </div>`;
       } else {
@@ -2097,8 +2371,11 @@ getIndexMarker(type: string, object: any): number {
             <p class="py-1 font-light">Message: <br><strong>${content.msg}</strong></p>
             <p class="py-1 font-light">Numéro: <strong>${content.numeroTel}</strong></p>
           </div>
-          <ion-button id="${'btnUpdateSos' + index
-          }" class="mt-2" size="small" fill="fill" style="--background:#1D4999;--background-activated:#173d84; text-transform: none;" class="mr-1 h-[40px] w-full border-2 border-[#1D4999] rounded-xl bg-[#1D4999] text-[13px] font-semibold tracking-wide text-white">Modifier</ion-button>
+          <a href="/update-sos/${content.id}" onclick="event.preventDefault(); window.location.href='/update-sos/${content.id}';"
+            class="mt-2 flex items-center justify-center h-10 w-full border-2 rounded-xl text-sm font-semibold text-white cursor-pointer"
+            style="background:#1D4999; border-color:#1D4999; text-decoration: none; text-transform: none;">
+            Modifier
+          </a>
           <ion-button id="${'supprimerSos' + index
           }" class="mt-2" size="small" fill="outline" style="--border-color:#EB2F06; --color:#EB2F06; text-transform: none;">Supprimer</ion-button>
         </div>`;
@@ -2194,42 +2471,39 @@ getIndexMarker(type: string, object: any): number {
         </div>`;
       }
     }
-   if (type == 'note' || type=='blue') {
-  
-  
+   if (type == 'note' || type == 'blue') {
         if (content.userId == this.authService.$userinfo?.id) {
-  
+          // Enhanced UI for the memo owner
           return `
-          <div class="bg-white ring-gray-900/5">
+          <div class="p-2 font-sans">
             ${detailsBlock}
-            <div class="flex justify-between">
-              <ion-button
-                id="${'updateNote' + index}"
-                class="h-10 w-full rounded-md bg-[#1D4999] text-white font-semibold text-sm"
-                style="--background: #1D4999; --background-activated: #173d84; text-transform: none;">
-                Modifier
-              </ion-button>
-              <ion-button id="${'supprimerNote' + index}" class="mt-2" size="small" fill="outline" style="--border-color:#EB2F06; --color:#EB2F06; text-transform: none;">Supprimer</ion-button>
+            <div class="flex items-center gap-x-2 mt-2">
+                <a href="/update-note/${content.id}" onclick="event.preventDefault(); window.location.href='/update-note/${content.id}';"
+                   class="flex-1 text-center rounded-lg px-3 py-2 text-sm font-semibold shadow-sm"
+                   style="background-color: #1D4999; color: white; text-decoration: none;">
+                   Modifier
+                </a>
+                <ion-button id="${'supprimerNote' + index}" class="flex-1" style="--border-color:#D9534F; --color:#D9534F; --background:white; text-transform: none; --border-radius: 8px;" fill="outline">
+                   Supprimer
+                </ion-button>
             </div>
           </div>`;
         } else {
-          return `<div class="bg-white ring-gray-900/5 p-4 shadow-md">
+          // Enhanced UI for other users viewing the memo
+          return `<div class="p-2 font-sans">
             ${detailsBlock}
-            <div class="mx-auto flex flex-col">
-              <p class="text-sm text-gray-500">Créé par: ${content.username}</p>
-            </div>
-            <div class="flex justify-between items-center mt-4">
-              <div class="flex mt-2">
-                <span id="${'like-' + index}" class="flex items-center mr-4 cursor-pointer">
-                  <img src="../../assets/icon/thumGreen.svg" width="30" class="mr-2" /> <span>${like}</span>
-                </span>
-                <span id="${'dislike-' + index}" class="flex items-center cursor-pointer">
-                  <img src="../../assets/icon/thumRed.svg" width="30" class="mr-2" /> <span>${dislike}</span>
-                </span>
-              </div>
-              <div>
-                <!-- Optional: Add a button for other users if needed in the future -->
-              </div>
+            <div class="mt-2">
+                <p class="text-xs text-gray-500 text-center mb-2">Créé par: ${content.username}</p>
+                <div class="flex justify-center items-center gap-x-6">
+                    <span id="${'like-' + index}" class="flex items-center gap-x-1 cursor-pointer">
+                        <img src="../../assets/icon/thumGreen.svg" width="25" />
+                        <span class="font-semibold text-gray-700">${like}</span>
+                    </span>
+                    <span id="${'dislike-' + index}" class="flex items-center gap-x-1 cursor-pointer">
+                        <img src="../../assets/icon/thumRed.svg" width="25" />
+                        <span class="font-semibold text-gray-700">${dislike}</span>
+                    </span>
+                </div>
             </div>
           </div>`;
         }
@@ -2241,18 +2515,26 @@ getIndexMarker(type: string, object: any): number {
 
   private buildDetailsBlock(type: string, content: any): string {
     if (!content) return '';
-    // --- FIX START: Correctly display date and time for Notes ---
-    // For notes, display the selected days. For others, display the date range.
-    const dateDisplay = (type === 'note' || type === 'blue') ? (content.selectedDays || content.date) : content.date;
-    const datePart = dateDisplay ? `<p class="text-sm text-gray-600">Date: <strong>${dateDisplay}</strong></p>` : '';
-
-    // For notes, only show the start time. For events, show the start and end time if available.
-    const timeStart = content.heureDebut ? `${content.heureDebut}` : '';
-    const timeEnd = (type === 'event' && content.heureFin) ? ` - ${content.heureFin}` : '';
-    const timePart = timeStart
-      ? `<p class="text-sm text-gray-600">Heure: <strong>${timeStart}${timeEnd}</strong></p>`
+    const isNoteType = type === 'note' || type === 'blue';
+    const dateDisplay = isNoteType
+      ? this.formatNoteDaysForDisplay(content?.selectedDays ?? content?.date)
+      : (content.date ?? '');
+    const dateLabel = isNoteType ? 'Jours' : 'Date';
+    const datePart = dateDisplay
+      ? `<p class="text-sm text-gray-600">${dateLabel}: <strong>${dateDisplay}</strong></p>`
       : '';
-    // --- FIX END ---
+
+    const timeStartRaw = content.heureDebut ? String(content.heureDebut) : '';
+    const formattedStart = isNoteType
+      ? this.formatNoteTimeForDisplay(timeStartRaw)
+      : timeStartRaw;
+    const timeEnd = (type === 'event' && content.heureFin)
+      ? ` - ${this.formatNoteTimeForDisplay(String(content.heureFin))}`
+      : '';
+    const hasStartTime = formattedStart && formattedStart !== '—';
+    const timePart = hasStartTime
+      ? `<p class="text-sm text-gray-600">Heure: <strong>${formattedStart}${timeEnd}</strong></p>`
+      : '';
 
     const lieu = content.lieu || content.name || 'Lieu inconnu';
     const typeLabel = content.type || (type === 'jaune' ? 'SOS' : type);
@@ -2280,6 +2562,58 @@ getIndexMarker(type: string, object: any): number {
     `;
   }
 
+  private formatNoteDaysForDisplay(raw: any): string {
+    const tokens: string[] = Array.isArray(raw)
+      ? raw
+      : typeof raw === 'string'
+        ? raw.split(',')
+        : [];
+    const canonical = new Set<string>();
+    let includesAll = false;
+
+    tokens.map((token) => `${token}`.trim()).filter(Boolean).forEach((token) => {
+      const lower = token.toLowerCase();
+      if (lower === '*' || lower === 'tous' || lower === 'tous les jours') {
+        includesAll = true;
+        return;
+      }
+      const alias = this.dayAliasForDisplay[lower];
+      if (alias && alias !== '*') {
+        canonical.add(alias);
+        return;
+      }
+      const numeric = parseInt(lower, 10);
+      if (!Number.isNaN(numeric)) {
+        if (numeric === 7) {
+          canonical.add('Dim');
+        } else if (numeric >= 0 && numeric <= 6) {
+          const numericOrder = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+          canonical.add(numericOrder[numeric]);
+        }
+      }
+    });
+
+    if (includesAll) {
+      return 'Tous les jours';
+    }
+    if (canonical.size === 0) {
+      return '';
+    }
+
+    const ordered = this.dayDisplayOrder.filter(day => canonical.has(day));
+    return ordered.join(', ');
+  }
+
+  private formatNoteTimeForDisplay(time?: string): string {
+    if (!time) {
+      return '—';
+    }
+    const [hours, minutes = '00'] = time.split(':');
+    const hh = (hours || '').padStart(2, '0');
+    const mm = (minutes || '').padStart(2, '0');
+    return `${hh}h${mm}`;
+  }
+
   onPause = () => {
     if (this.MarkerTimer) {
       clearInterval(this.MarkerTimer);
@@ -2296,16 +2630,13 @@ getIndexMarker(type: string, object: any): number {
   // This method is now enhanced and moved to line 1726
 
   displayBlueMarker() {
-    console.log("show bluemarkers", this.blueMarkers)
     this.blueMarkers.forEach((el, index) => {
       let mapObject: any = {
         id: el.id,
         object: null,
       };
 
-      console.log('el', el)
       let accepted = this.checkDates(el, 'none');
-      console.log("this.checkDates(el, 'none'),this.checkDates(el, 'none')",)
 
       if (accepted) {
         const iconUrl = this.markerLevel('note', el.level, el.userId, el.role);
@@ -2313,6 +2644,7 @@ getIndexMarker(type: string, object: any): number {
         // Create a Leaflet marker
         mapObject.object = this.createLeafletMarker(iconUrl, [el.lat, el.lng])
           .addTo(this.map!);
+        this.tagMarker(mapObject.object, el.id, 'note');
 
         // Create the content string for the popup
         const contentString = this.widgetContent(
@@ -2368,6 +2700,7 @@ getIndexMarker(type: string, object: any): number {
       if (this.map) { // Assurez-vous que la carte est initialisée
         mapObject.object = this.createLeafletMarker(iconUrl, [el.lat, el.lng])
           .addTo(this.map!);
+        this.tagMarker(mapObject.object, el.id, 'green');
 
         const contentString = this.widgetContent(
           'green',
@@ -2423,6 +2756,7 @@ getIndexMarker(type: string, object: any): number {
       if (this.map) { // Assurez-vous que la carte est initialisée
         mapObject.object = this.createLeafletMarker(iconUrl, [el.lat, el.lng])
           .addTo(this.map!);
+        this.tagMarker(mapObject.object, el.id, 'jaune');
 
         const contentString = this.widgetContent(
           'jaune',
@@ -2475,9 +2809,10 @@ getIndexMarker(type: string, object: any): number {
       };
 
       const iconUrl = this.markerLevel('red', el.level, el.userId, el.role);
- if (this.map) { // Assurez-vous que la carte est initialisée
+      if (this.map) { // Assurez-vous que la carte est initialisée
         mapObject.object = this.createLeafletMarker(iconUrl, [el.lat, el.lng])
           .addTo(this.map!);
+        this.tagMarker(mapObject.object, el.id, 'red');
 
         const contentString = this.widgetContent(
           'red',
@@ -2556,40 +2891,249 @@ getIndexMarker(type: string, object: any): number {
     return newDateTime;
   }
 
+  private parseDateInput(raw: any): Date | null {
+    if (!raw) return null;
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+      return new Date(raw.getTime());
+    }
+    const str = String(raw).trim();
+    if (!str) return null;
+
+    const direct = new Date(str);
+    if (!isNaN(direct.getTime())) {
+      return direct;
+    }
+
+    const match = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+    if (!match) {
+      return null;
+    }
+
+    const day = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    let year = parseInt(match[3], 10);
+    if (year < 100) {
+      year += 2000;
+    }
+    return new Date(year, month - 1, day);
+  }
+
+  private parseTimeInput(raw: any): { hours: number; minutes: number } | null {
+    if (raw === null || raw === undefined) return null;
+    if (typeof raw === 'number' && isFinite(raw)) {
+      const hours = Math.floor(raw);
+      const minutes = Math.round((raw - hours) * 60);
+      return {
+        hours: Math.min(23, Math.max(0, hours)),
+        minutes: Math.min(59, Math.max(0, minutes)),
+      };
+    }
+
+    const str = String(raw).trim();
+    if (!str) return null;
+    const match = str.match(/(\d{1,2})(?:[:hH](\d{2}))?/);
+    if (!match) return null;
+    const hours = Math.min(23, Math.max(0, parseInt(match[1], 10)));
+    const minutes = match[2] ? Math.min(59, Math.max(0, parseInt(match[2], 10))) : 0;
+    return { hours, minutes };
+  }
+
+  private attachTimeToDate(date: Date, time: { hours: number; minutes: number }): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate(), time.hours, time.minutes, 0, 0);
+  }
+
+  private extractEventDates(pointData: any): { startDate: Date | null; endDate: Date | null } {
+    const rangeSource = pointData?.dates ?? pointData?.date ?? '';
+    let rangeStart: Date | null = null;
+    let rangeEnd: Date | null = null;
+    if (typeof rangeSource === 'string' && rangeSource.trim().length > 0) {
+      const matches = rangeSource.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/g);
+      if (matches && matches.length > 0) {
+        const parsed = matches
+          .map(token => this.parseDateInput(token))
+          .filter((d): d is Date => !!d);
+        if (parsed.length > 0) {
+          rangeStart = parsed[0];
+          rangeEnd = parsed.length > 1 ? parsed[parsed.length - 1] : parsed[0];
+        }
+      }
+    }
+
+    const startCandidate =
+      this.parseDateInput(pointData?.dateDebut) ||
+      this.parseDateInput(pointData?.date_debut) ||
+      rangeStart ||
+      this.parseDateInput(pointData?.date) ||
+      this.parseDateInput(pointData?.created_at);
+
+    const endCandidate =
+      this.parseDateInput(pointData?.dateFin) ||
+      this.parseDateInput(pointData?.date_fin) ||
+      rangeEnd ||
+      this.parseDateInput(pointData?.date) ||
+      (startCandidate ? new Date(startCandidate.getTime()) : null);
+
+    return {
+      startDate: startCandidate ? new Date(startCandidate.getTime()) : null,
+      endDate: endCandidate ? new Date(endCandidate.getTime()) : null,
+    };
+  }
+
+  private resolveEventWindow(pointData: any): { start: number | null; end: number | null } {
+    const { startDate, endDate } = this.extractEventDates(pointData);
+    if (!startDate) {
+      return { start: null, end: null };
+    }
+
+    const startTime = this.parseTimeInput(pointData?.heureDebut ?? pointData?.heure_debut ?? pointData?.heure ?? pointData?.timeStart);
+    const endTime = this.parseTimeInput(pointData?.heureFin ?? pointData?.heure_fin ?? pointData?.timeEnd ?? pointData?.heureTerminee);
+
+    const startDateTime = this.attachTimeToDate(startDate, startTime ?? { hours: 0, minutes: 0 });
+
+    let endDateTime: Date | null = null;
+    if (endTime) {
+      const endBase = endDate ?? startDate;
+      endDateTime = this.attachTimeToDate(endBase, endTime);
+      if (endDateTime.getTime() <= startDateTime.getTime()) {
+        endDateTime = new Date(endDateTime.getTime() + 24 * 60 * 60 * 1000);
+      }
+    } else if (endDate && endDate.getTime() !== startDate.getTime()) {
+      endDateTime = this.attachTimeToDate(endDate, { hours: 23, minutes: 59 });
+    } else if (startTime) {
+      endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
+    } else {
+      endDateTime = this.attachTimeToDate(startDate, { hours: 23, minutes: 59 });
+    }
+
+    return {
+      start: startDateTime.getTime(),
+      end: endDateTime ? endDateTime.getTime() : null,
+    };
+  }
+
+  private getEventTimeWindow(event: any): { start: Date | null, end: Date | null } {
+    if (!event?.date || !event.heureDebut) {
+      return { start: null, end: null };
+    }
+
+    const parseDateString = (dateStr: string): Date | null => {
+        const parts = dateStr.trim().split('/');
+        if (parts.length === 3) {
+            const [day, month, year] = parts.map(Number);
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+              // JS month is 0-indexed
+              return new Date(year, month - 1, day);
+            }
+        }
+        // Also try YYYY-MM-DD for robustness
+        const isoParts = dateStr.trim().split('-');
+        if (isoParts.length === 3) {
+            const [year, month, day] = isoParts.map(Number);
+            if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+              return new Date(year, month - 1, day);
+            }
+        }
+        return null;
+    };
+
+    const dateParts = event.date.split(' - ');
+    const startDate = parseDateString(dateParts[0]);
+    const endDate = dateParts.length > 1 ? parseDateString(dateParts[1]) : startDate;
+
+    if (!startDate || !endDate) {
+        return { start: null, end: null };
+    }
+
+    const [startHour, startMinute] = event.heureDebut.split(':').map(Number);
+    const startDateTime = new Date(startDate.getTime());
+    startDateTime.setHours(startHour, startMinute, 0, 0);
+
+    let endDateTime;
+    if (event.heureFin) {
+        const [endHour, endMinute] = event.heureFin.split(':').map(Number);
+        endDateTime = new Date(endDate.getTime());
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+    } else {
+        // If no end time, assume it lasts until the end of the final day.
+        endDateTime = new Date(endDate.getTime());
+        endDateTime.setHours(23, 59, 59, 999);
+    }
+    
+    // Handle overnight events
+    if (endDateTime.getTime() < startDateTime.getTime()) {
+        endDateTime.setDate(endDateTime.getDate() + 1);
+    }
+
+    return { start: startDateTime, end: endDateTime };
+  }
+
+  private scheduleEventExpiry(pointData: any) {
+    const pointId = this.normalizeId(pointData.id);
+    if (this.eventExpiryTimers[pointId]) {
+      return;
+    }
+
+    const { end } = this.getEventTimeWindow(pointData);
+    if (!end) {
+      return;
+    }
+
+    const now = Date.now();
+    const timeUntilExpiry = end.getTime() - now;
+
+    const onExpiry = () => {
+      this.suppressedPointIds.add(pointId); // Prevent re-appearance
+      this.removeMarkerFromUI(pointId, 'event');
+      delete this.eventExpiryTimers[pointId];
+      this.ensureMarkersVisible();
+    };
+
+    if (timeUntilExpiry <= 0) {
+      const evExpiresAt = this.recentlyCreatedEvents.get(pointId);
+      const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
+
+      if (!underGrace) {
+        onExpiry();
+      }
+      return;
+    }
+
+    if (timeUntilExpiry > 24 * 60 * 60 * 1000) {
+      return;
+    }
+
+    this.eventExpiryTimers[pointId] = setTimeout(onExpiry, timeUntilExpiry + 1000);
+  }
+
+  private isEventActiveNow(pointData: any, reference: number | Date = Date.now()): boolean {
+    const { start, end } = this.getEventTimeWindow(pointData);
+    if (!start || !end) {
+      return false;
+    }
+    const referenceDate = new Date(reference);
+    return referenceDate >= start && referenceDate <= end;
+  }
+
   checkDates(element: any, action: string) {
     if (action == 'create') {
       return true; // Always allow creation
     }
 
-    if (!element?.date) {
-      console.error("checkDates Error: element.date is null or undefined.", element);
+    if (!element) {
       return false;
     }
 
-    // --- THIS IS THE FIX ---
-    // A much simpler and more robust way to check if an event is currently active.
-    const now = new Date();
-    const eventDateStr = element.date; // e.g., "11/08/2025"
-    const [day, month, year] = eventDateStr.split('/').map(Number);
-
-    // Check if the event is for today
-    if (year !== now.getFullYear() || month !== now.getMonth() + 1 || day !== now.getDate()) {
-      return false; // Not today, so not active.
+    const inferredType = (element?.type || element?.pointType || element?.category || '').toString().toLowerCase();
+    const looksLikeNote = Boolean(element?.selectedDays)
+      || inferredType === 'note'
+      || inferredType === 'memo'
+      || inferredType === 'mémo'
+      || inferredType === 'blue';
+    if (looksLikeNote) {
+      return this.isNoteVisibleNow(element);
     }
 
-    // It is today, now check the time
-    const startTimeStr = element.heureDebut; // e.g., "19:23"
-    // If no end time, assume it lasts for one hour.
-    const endTimeStr = element.heureFin || `${(parseInt(startTimeStr.split(':')[0]) + 1)}:${startTimeStr.split(':')[1]}`;
-
-    const startDateTime = new Date();
-    startDateTime.setHours(parseInt(startTimeStr.split(':')[0]), parseInt(startTimeStr.split(':')[1]), 0);
-
-    const endDateTime = new Date();
-    endDateTime.setHours(parseInt(endTimeStr.split(':')[0]), parseInt(endTimeStr.split(':')[1]), 0);
-
-    // Check if the current time is between the start and end times
-    return now >= startDateTime && now <= endDateTime;
+    return this.isEventActiveNow(element);
   }
 
 
@@ -2601,7 +3145,6 @@ getIndexMarker(type: string, object: any): number {
   }
 
   displayEventMarkers() {
-    console.log('events markers ', this.purpleMarkers)
     this.purpleMarkers.forEach((el, index) => {
       let mapObject: any = {
         id: el.id,
@@ -2616,6 +3159,7 @@ getIndexMarker(type: string, object: any): number {
 
       // Create a Leaflet marker
       mapObject.object = this.createLeafletMarker(beachFlagImgUrl, [el.lat, el.lng], { width: iconSize[0], height: iconSize[1] });
+      this.tagMarker(mapObject.object, el.id, 'event');
       if (this.map) {
         mapObject.object.addTo(this.map);
       }
@@ -2697,7 +3241,6 @@ getIndexMarker(type: string, object: any): number {
         
         if (elapsed >= totalDurationMs) {
           // Log it for debugging and tell the backend to clean it up.
-          console.log(`Skipping expired affluence point ID: ${markerData.id}. It should be removed from the backend.`);
           this.expireAffluencePoint(markerData.id); 
           return; // Skip the rest of the loop for this expired marker.
         }
@@ -2710,33 +3253,23 @@ getIndexMarker(type: string, object: any): number {
         const now = Date.now();
         const evExpiresAt = this.recentlyCreatedEvents.get(this.normalizeId(markerData.id));
         const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
-        const isActiveNow = this.checkDates(markerData, 'none');
+        const isActiveNow = this.isEventActiveNow(markerData);
         if (!underGrace && !isActiveNow) {
           return;
         }
       }
-      // For notes, enforce time visibility except for the freshly created point (show immediately)
-      if (type === 'blue' || type === 'note') {
-        // Allow grace period for newly created notes
-        const now = Date.now();
-        const expiresAt = this.recentlyCreatedNotes.get(this.normalizeId(markerData.id));
-        const isUnderGrace = typeof expiresAt === 'number' && now < expiresAt;
-        if (!isUnderGrace) {
-          const isActiveNow = this.isNoteVisibleNow(markerData);
-          if (!isActiveNow) {
-            return;
-          }
-        }
+      // For notes, enforce time visibility strictly based on schedule
+      if ((type === 'blue' || type === 'note') && !this.isNoteVisibleNow(markerData)) {
+        return;
       }
       const iconUrl = this.getIconForType(type, markerData);
       if (!iconUrl) return;
   
       const newMarker = this.createLeafletMarker(iconUrl, [markerData.lat, markerData.lng])
         .addTo(this.map!);
+      this.tagMarker(newMarker, markerData.id, type);
       // Force a layout pass for this marker after it's added
       try { (newMarker as any).update?.(); } catch {}
-  
-      (newMarker as any).pointId = markerData.id; // Attach the point ID to the marker instance
 
       // Set opacity based on filter selection AND apply ownership styles
       const markerElement = newMarker.getElement();
@@ -2778,7 +3311,10 @@ getIndexMarker(type: string, object: any): number {
        // Populate specific marker object arrays with full data
       const mapObject = { ...markerData, object: newMarker };
       switch (type) {
-          case 'event': this.objectpurpleMarkers.push(mapObject); break;
+          case 'event':
+            this.objectpurpleMarkers.push(mapObject);
+            this.scheduleEventExpiry(markerData);
+            break;
           case 'red': this.objectredMarkers.push(mapObject); break;
       case 'green': this.objectgreenMarkers.push(mapObject); break;
           case 'blue':
@@ -2826,12 +3362,26 @@ getIndexMarker(type: string, object: any): number {
     let typeToFilter = type;
     const normalizedPointId = this.normalizeId(pointId);
 
+    if (!typeToFilter) {
+      const inferred = this.inferMarkerType(pointId);
+      if (inferred) {
+        typeToFilter = inferred;
+      }
+    }
+
     // Handle aliases like 'blue' for 'note'
-    if (type === 'blue') {
+    if (typeToFilter === 'blue') {
       typeToFilter = 'note';
     }
-    if (type === 'station') {
+    if (typeToFilter === 'station') {
       typeToFilter = 'green';
+    }
+
+    if (typeToFilter === 'event') {
+      if (this.eventExpiryTimers[normalizedPointId]) {
+        clearTimeout(this.eventExpiryTimers[normalizedPointId]);
+        delete this.eventExpiryTimers[normalizedPointId];
+      }
     }
 
     // --- THIS IS THE FIX ---
@@ -2839,8 +3389,7 @@ getIndexMarker(type: string, object: any): number {
     if (typeToFilter === 'red') {
       if (this.affluenceTimers[pointId]) { // It's now a setTimeout
         clearTimeout(this.affluenceTimers[pointId]); // Stop the timer.
-        delete this.affluenceTimers[pointId];      // Remove it from the timers object.
-        console.log(`Cleared fading timer for affluence point ID: ${pointId}`);
+        delete this.affluenceTimers[pointId];       // Remove it from the timers object.
       }
     }
     // --- END OF FIX ---
@@ -2868,7 +3417,9 @@ getIndexMarker(type: string, object: any): number {
         dataMarkers = this.jauneMarkers;
         break;
       default:
-        console.error(`Unknown marker type "${type}" provided to removeMarkerFromUI.`);
+        if (!typeToFilter) {
+          return;
+        }
         return; // Do nothing for unknown types
     }
 
@@ -2880,7 +3431,6 @@ getIndexMarker(type: string, object: any): number {
         try {
           markerObject.object.remove(); // This removes the marker from the Leaflet map
         } catch (e) {
-          console.error(`Error removing marker with ID ${pointId} from map:`, e);
         }
       }
       // Remove from the specific object array
@@ -2900,7 +3450,6 @@ getIndexMarker(type: string, object: any): number {
       this.allMarkers.splice(markerIndexInAll, 1);
     }
 
-    console.log(`Successfully removed marker ${pointId} of type ${type} from the UI.`);
   }
 
   
@@ -2931,7 +3480,7 @@ getIndexMarker(type: string, object: any): number {
       }
       const evExpiresAt = this.recentlyCreatedEvents.get(this.normalizeId(data.id));
       const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
-      const active = this.checkDates(data, 'none');
+      const active = this.isEventActiveNow(data);
       if (!active && !underGrace) {
         if (obj.object) {
           try { obj.object.remove(); } catch {}
@@ -2942,19 +3491,22 @@ getIndexMarker(type: string, object: any): number {
       }
     });
     if (toRemove.length > 0) {
-      this.objectpurpleMarkers = this.objectpurpleMarkers.filter((o: any) => !toRemove.includes(o.id));
+      const removedIds = new Set(toRemove.map(id => this.normalizeId(id)));
+      this.objectpurpleMarkers = this.objectpurpleMarkers.filter((o: any) => !removedIds.has(this.normalizeId(o.id)));
+      this.purpleMarkers = (this.purpleMarkers || []).filter((p: any) => !removedIds.has(this.normalizeId(p.id)));
     }
 
     // Add event markers that became active (or are within grace window)
     this.purpleMarkers.forEach((ev: any) => {
       const evExpiresAt = this.recentlyCreatedEvents.get(this.normalizeId(ev.id));
       const underGrace = typeof evExpiresAt === 'number' && now < evExpiresAt;
-      const isActive = this.checkDates(ev, 'none');
+      const isActive = this.isEventActiveNow(ev);
       const exists = this.objectpurpleMarkers.find((o: any) => o.id === ev.id);
       if ((isActive || underGrace) && !exists) {
         const iconUrl = this.getIconForType('event', ev);
         if (!iconUrl) return;
         const newMarker = this.createLeafletMarker(iconUrl, [ev.lat, ev.lng]).addTo(this.map!);
+        this.tagMarker(newMarker, ev.id, 'event');
 
         // Apply icon color shadow like other markers
         const markerElement = newMarker.getElement();
@@ -2985,38 +3537,7 @@ getIndexMarker(type: string, object: any): number {
   }
 
   private isNoteVisibleNow(el: any): boolean {
-    if (!el || !el.heureDebut) return false;
-    const current = new Date();
-    const currentMs = current.getTime();
-    const dayIndex = current.getDay(); // 0=Sun..6=Sat
-    const frShort = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
-    const frFull  = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-    const enShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-
-    const rawStr: any = (el.date ?? el.dates ?? '');
-    const tokens = typeof rawStr === 'string'
-      ? rawStr.split(',').map(s => s.trim()).filter(Boolean)
-      : [];
-    const hasConstraint = tokens.length > 0 && !(tokens.length === 1 && tokens[0].toLowerCase() === 'undefined');
-    let todayMatches = true;
-    if (hasConstraint) {
-      todayMatches = tokens.includes(frShort[dayIndex])
-        || tokens.includes(frFull[dayIndex])
-        || tokens.includes(enShort[dayIndex])
-        || tokens.includes(String(dayIndex))
-        || tokens.includes('*');
-    }
-    if (!todayMatches) return false;
-
-    const yyyy = current.getFullYear();
-    const mm = String(current.getMonth() + 1).padStart(2, '0');
-    const dd = String(current.getDate()).padStart(2, '0');
-    const startIso = `${yyyy}-${mm}-${dd}T${el.heureDebut}:00`;
-    const start = new Date(startIso).getTime();
-
-    const startWindow = start - 15 * 60 * 1000; // 15 minutes before start time
-    const endWindow = start + 15 * 60 * 1000;   // 15 minutes after start time (total 30 min duration)
-    return currentMs >= startWindow && currentMs <= endWindow;
+    return this.computeNoteVisibility(el, new Date());
   }
 
   private refreshNoteMarkersVisibility() {
@@ -3033,10 +3554,7 @@ getIndexMarker(type: string, object: any): number {
         if (idx >= 0) this.allMarkers.splice(idx, 1);
         return;
       }
-      const now = Date.now();
-      const expiresAt = this.recentlyCreatedNotes.get(data.id);
-      const isUnderGrace = typeof expiresAt === 'number' && now < expiresAt;
-      if (!isUnderGrace && !this.isNoteVisibleNow(data)) {
+      if (!this.isNoteVisibleNow(data)) {
         try { obj.object?.remove(); } catch {}
         toRemove.push(obj.id);
         const idx = this.allMarkers.indexOf(obj.object);
@@ -3049,14 +3567,13 @@ getIndexMarker(type: string, object: any): number {
 
     // Add notes that became visible
     this.blueMarkers.forEach((note: any) => {
-      const now = Date.now();
-      const expiresAt = this.recentlyCreatedNotes.get(this.normalizeId(note.id));
-      const visible = (typeof expiresAt === 'number' && now < expiresAt) || this.isNoteVisibleNow(note);
+      const visible = this.isNoteVisibleNow(note);
       const exists = this.objectblueMarkers.find((o: any) => o.id === note.id);
       if (visible && !exists) {
         const iconUrl = this.getIconForType('note', note);
         if (!iconUrl) return;
         const newMarker = this.createLeafletMarker(iconUrl, [note.lat, note.lng]).addTo(this.map!);
+        this.tagMarker(newMarker, note.id, 'note');
 
         const markerElement = newMarker.getElement();
         if (markerElement) {
@@ -3190,26 +3707,21 @@ getIndexMarker(type: string, object: any): number {
             ids.forEach(id => this.alreadyDisabledIds.add(id));
             // No full refetch here to avoid fetch loops; we already removed markers locally
           } else {
-            console.error('Disable API logical error', data);
           }
         }, (err) => {
-          console.error('Disable API error', err);
         });
       } catch (e) {
-        console.error('Disable batching error', e);
       }
     }, 3000);
   }
 
   private clearMarker() {
-    console.log('Clearing all markers and timers');
     
     // Remove all markers from map
     this.allMarkers.forEach(marker => {
       try {
         marker.remove();
       } catch (error) {
-        console.error('Error removing marker:', error);
       }
     });
     this.allMarkers = [];
@@ -3275,9 +3787,9 @@ getIndexMarker(type: string, object: any): number {
             const pid = this.normalizeId((layer as any).pointId);
             if ((pid && pid === normalizedId)
               || (targetLat != null && targetLng != null && (() => {
-                    const p = layer.getLatLng();
-                    return near(p.lat, targetLat) && near(p.lng, targetLng);
-                 })())) {
+                  const p = layer.getLatLng();
+                  return near(p.lat, targetLat) && near(p.lng, targetLng);
+                })())) {
               try { layer.remove(); } catch {}
             }
           }
@@ -3299,7 +3811,6 @@ getIndexMarker(type: string, object: any): number {
       // If the popup for this station was open, close all
       this.closeAllPopups();
     } catch (e) {
-      console.warn('Non-blocking UI cleanup error for station removal:', e);
     }
   }
 
@@ -3415,25 +3926,19 @@ getIndexMarker(type: string, object: any): number {
     this.isFetchingPoints = true;
     this.pointService.$getPoints().subscribe(
       (data: any) => {
-        // Update datasets
-        this.redMarkers = data.red;
-        this.greenMarkers = data.green;
-        this.blueMarkers = data.note;
-        this.jauneMarkers = data.sos;
-        this.purpleMarkers = data.event;
-
         // Diff-based UI refresh
         this.syncMarkers(data);
         this.ensureEventVisibilityWatcher();
         this.ensureNoteVisibilityWatcher();
         try { this.refreshFading(); } catch {}
+        try { this.refreshEventMarkersVisibility(); } catch {}
+        try { this.refreshNoteMarkersVisibility(); } catch {}
         // Update popup content for any SOS popups to reflect latest data
         try { this.refreshSosPopups(); } catch {}
 
         this.isFetchingPoints = false;
       },
       (err) => {
-        console.error('Realtime fetch error:', err);
         this.isFetchingPoints = false;
       }
     );
@@ -3473,7 +3978,6 @@ getIndexMarker(type: string, object: any): number {
         } catch {}
       });
     } catch (e) {
-      console.warn('Non-blocking SOS popup refresh error', e);
     }
   }
 
@@ -3510,7 +4014,6 @@ getIndexMarker(type: string, object: any): number {
         try { this.handleLikesAndDislikes(index, 'jaune', updated || {}); } catch {}
       }, 100);
     } catch (e) {
-      console.warn('Failed to open SOS popup by id', e);
     }
   }
 
@@ -3530,8 +4033,11 @@ getIndexMarker(type: string, object: any): number {
     // before we try to attach event listeners to its buttons.
     marker.on('popupopen', () => {
       this.checker = false; // Keep this to manage UI state if needed
-      this.handleBtnClick(content.index, type, content);
-      this.handleLikesAndDislikes(content.index, type, content);
+      // Add a small delay to ensure the popup DOM is fully rendered before attaching event listeners
+      setTimeout(() => {
+        this.handleBtnClick(content.index, type, content);
+        this.handleLikesAndDislikes(content.index, type, content);
+      }, 100);
     });
   }
 
@@ -3540,9 +4046,6 @@ getIndexMarker(type: string, object: any): number {
     try {
       const total = this.blueMarkers?.length || 0;
       const visibleNow = (this.blueMarkers || []).filter((n: any) => this.isNoteVisibleNow(n)).length;
-      console.group('[NOTE DEBUG]');
-      console.log('Total notes fetched from backend:', total);
-      console.log('Visible now (15m before start to 15m after end):', visibleNow);
       const rows = (this.blueMarkers || []).map((n: any) => ({
         id: n.id,
         name: n.name,
@@ -3554,10 +4057,7 @@ getIndexMarker(type: string, object: any): number {
         lng: n.lng,
         visibleNow: this.isNoteVisibleNow(n)
       }));
-      console.table(rows);
-      console.groupEnd();
     } catch (e) {
-      console.error('[NOTE DEBUG] error while logging notes', e);
     }
   }
 
@@ -3585,10 +4085,19 @@ getIndexMarker(type: string, object: any): number {
   goToNoteLocation(note: any) {
     if (this.map && note.lat && note.lng) {
       this.map.flyTo([note.lat, note.lng], 16);
-      // Find and open the popup for this note
+      // Find and open the popup for this note if it's currently visible on the map
       const noteMarker = this.objectblueMarkers.find(marker => marker.id === note.id);
       if (noteMarker && noteMarker.object) {
         noteMarker.object.openPopup();
+      } else {
+        // Note is not currently visible - show a temporary info message
+        const isVisible = this.isNoteVisibleNow(note);
+        if (!isVisible) {
+          // Show notification that memo is not currently in its time window
+          const now = new Date();
+          const dayNames = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+          const currentDay = dayNames[now.getDay()];
+        }
       }
     }
     this.closeMemosOverlay();
@@ -3601,7 +4110,6 @@ getIndexMarker(type: string, object: any): number {
   }
 
   openLocationUpdateModal(station: any) {
-    console.log("Opening modal to update station location...");
   
     // Create the modal container
     const modal = document.createElement('div');
@@ -3712,8 +4220,7 @@ getIndexMarker(type: string, object: any): number {
         return;
       }
   
-      console.log("Updating station:", newStationName, station.lat, station.lng);
-  
+      
       // Update station data
       const updateData = {
         id: station.id,
@@ -3748,7 +4255,6 @@ getIndexMarker(type: string, object: any): number {
 
   // Function to enable polyline drawing
   loadPolylines() {
-    console.log("Attempting to load polylines...");
     this.clearPolylines(); // Clear any existing polylines first
 
     if (!this.map) {
@@ -3760,7 +4266,6 @@ getIndexMarker(type: string, object: any): number {
     this.greenMarkers.forEach((station: any) => {
       // --- FIX: Do not draw the solid polyline for the station currently being edited ---
       if (this.editingStationId && this.normalizeId(station.id) === this.editingStationId) {
-        console.log(`In edit mode for station ${this.editingStationId}, skipping solid line render.`);
         return;
       }
       if (!station.polyline) return;
@@ -3778,7 +4283,6 @@ getIndexMarker(type: string, object: any): number {
           }
         });
       } catch (e) {
-        console.error('Error parsing polyline data for station:', station.id, e);
       }
     });
 
@@ -3815,7 +4319,6 @@ getIndexMarker(type: string, object: any): number {
       // Ensure visibility matches current filter state
       try { this.updatePolylineVisibilityForFilter(); } catch {}
     } catch (e) {
-      console.error('Failed to render station polyline from JSON for station', stationId, e);
     }
   }
 
@@ -3893,7 +4396,6 @@ getIndexMarker(type: string, object: any): number {
     private polylineMarkers: L.Marker[] = [];
     private mapClickHandler: ((e: L.LeafletMouseEvent) => void) | null = null;
   enablePolylineDrawing(index: number, content: any) {
-    console.log("Enable map click for polyline drawing, station:", index);
     if (this.isDrawingPolyline) return; // Prevent starting a new drawing session if one is active
 
     this.isDrawingPolyline = true;
@@ -3946,15 +4448,12 @@ getIndexMarker(type: string, object: any): number {
         if (!this.isDrawingPolyline) {
             return; // Prevent accidental calls
         }
-        console.log("Finish button clicked. Saving polyline drawing.");
-
         // The station being edited is stored in this.editingStationId
         const stationId = this.editingStationId;
 
         // Save the drawn polyline if it's valid
         if (stationId && this.currentPolyline && this.polylinePoints.length >= 2) {
             const coordinates = (this.currentPolyline.getLatLngs() as L.LatLng[]).map(ll => ({ lat: ll.lat, lng: ll.lng }));
-            console.log("Final polyline coordinates:", coordinates);
 
             const jsonPolyline = JSON.stringify([coordinates]); // Always save as a multi-polyline for consistency
             const updateData = { id: stationId, type: 'green', newData: { polyline: jsonPolyline } };
@@ -4022,42 +4521,46 @@ getIndexMarker(type: string, object: any): number {
   
 
  handleBtnClick(index: number, type: string, object: any) {
-     this.checker = true;
-     let btn;
-     let btnjaune;
-     let action = '';
+    this.checker = true;
+    let btn;
+    let btnjaune;
+    let action = '';
 
 
-     
+    
   if (type === 'green') {
-    console.log("Handling update for green station");
-
     // Fetch buttons
     const updateBtn = document.getElementById(`updateStation${index}`);
 
     // --- Handle Join/Leave Queue Button for other users ---
+    const joinQueueKey = `green-${index}-joinQueue`;
+    const updateKey = `green-${index}-update`;
+
     const joinQueueBtn = document.getElementById(`joinQueueBtn-${index}`);
-    if (joinQueueBtn) {
-      joinQueueBtn.addEventListener('click', () => this.toggleQueue(object));
+    if (joinQueueBtn && !this.attachedListeners.has(joinQueueKey)) {
+      this.attachedListeners.set(joinQueueKey, true);
+      joinQueueBtn.addEventListener('click', () => {
+        this.attachedListeners.delete(joinQueueKey);
+        this.toggleQueue(object);
+      }, { once: true });
     }
 
-    if (updateBtn) {
+    if (updateBtn && !this.attachedListeners.has(updateKey)) {
 
-      console.log(object)
+      this.attachedListeners.set(updateKey, true);
       updateBtn.addEventListener('click', () => {
+        this.attachedListeners.delete(updateKey);
         // Small delay to ensure DOM is ready
         setTimeout(() => {
 
         const incorrectLocation = (document.getElementById(`incorrectLocation${index}`) as HTMLInputElement).checked;
         const stationDoesNotExist = (document.getElementById(`stationDoesNotExist${index}`) as HTMLInputElement).checked;
         const modifyQueue = (document.getElementById(`modifyQueue${index}`) as HTMLInputElement).checked;
-        
-        console.log('Radio button states:', { incorrectLocation, stationDoesNotExist, modifyQueue });
+
 
         if (incorrectLocation) {
-          console.log("Opening modal to update station location...");
           this.openLocationUpdateModal(object);
-          
+
           const updateData = {
             id: object.id,
             type: 'green',
@@ -4067,22 +4570,19 @@ getIndexMarker(type: string, object: any): number {
             },
           };
           this.updatePoint(updateData);
-        } 
+        }
         else if (stationDoesNotExist) {
-          console.log("Deleting station and its paths...");
           // Remove polylines from map immediately for this station
           this.removePolylinesByStationId(object.id);
           this.deleteStation(index!,object,"delete");
           // No updatePoint call needed for deletion - handled by delete confirmation
-        } 
+        }
         else if (modifyQueue) {
-          console.log("Enable path editing mode...");
           this.closeAllPopups();
           // Keep the current map center and zoom; do not call goToLocation or re-center
           // Do NOT call updatePoint() or getAllPoint() here - just enable editing mode
           this.startPolylineRedraw(object);
         } else {
-          console.warn("No radio button selected. Please choose an option before modifying.");
           presentToast(
             "Veuillez sélectionner une option avant de modifier.",
             'bottom',
@@ -4095,96 +4595,93 @@ getIndexMarker(type: string, object: any): number {
     }
   }
 
-        if ( type=='note' || type=='blue') {
-                  btn = document.getElementById(`${'updateNote' + index}`);
-                  if (btn) {
-                    btn.addEventListener('click', () => {
-                      this.updateEventContent(index!, 'note', object, 'update');
+        if (type === 'note' || type === 'blue') {
+          btn = document.getElementById(`${'supprimerNote' + index}`);
+          action = 'delete';
+          if (btn) {
+            (btn as HTMLElement).onclick = (ev: MouseEvent) => {
+              ev.preventDefault();
+              ev.stopPropagation();
+              this.updateEventContent(index!, 'note', object, action);
+            };
+          }
+        }
 
-                    });
-                  }
-                  btn = document.getElementById(`${'supprimerNote' + index}`);
-                  action = 'delete';
-                  if (btn) {
-                    btn.addEventListener('click', () => {
-                      this.updateEventContent(index!, 'note', object, action);
-                    });
-                  }
-                }
+    if (type == 'event') {
+                      const deleteKey = `event-${index}-delete`;
 
-     if (type == 'event') {
-                      btn = document.getElementById(`${'btnUpdateEvent' + index}`);
-                      if (btn) {
-                        btn.addEventListener('click', () => {
-                          this.updateEventContent(index!, type, object, 'update');
-
-                        });
-                      }
                       btn = document.getElementById(`${'supprimerEvent' + index}`);
                       action = 'delete';
-                      if (btn) {
+                      if (btn && !this.attachedListeners.has(deleteKey)) {
+                        this.attachedListeners.set(deleteKey, true);
                         btn.addEventListener('click', () => {
+                          this.attachedListeners.delete(deleteKey);
                           this.updateEventContent(index!, 'event', object, action);
-                        });
+                        }, { once: true });
                       }
                     }if (type == 'jaune') {
-       btn = document.getElementById(`${'btnUpdateSos' + index}`);
+    // Update button now uses direct link navigation - no event listener needed
+    const deleteKey = `jaune-${index}-delete`;
 
-       if (btn) {
-         btn.addEventListener('click', () => {
-           this.updateEventContent(index!, type, object, 'update');
+    btn = document.getElementById(`${'supprimerSos' + index}`);
+    action = 'delete';
+    if (btn && !this.attachedListeners.has(deleteKey)) {
+      this.attachedListeners.set(deleteKey, true);
+      btn.addEventListener('click', () => {
+        this.attachedListeners.delete(deleteKey);
+        this.updateEventContent(index!, type, object, action);
+      }, { once: true });
+    }
+    } else if (type == 'red') {
+      if (this.authService.$userinfo?.id == object.userId) {
+        const deleteKey = `red-${index}-delete`;
+        btn = document.getElementById(`${'supprimer' + index}`);
+        action = 'delete';
+         if (btn && !this.attachedListeners.has(deleteKey)) {
+            this.attachedListeners.set(deleteKey, true);
+            btn.addEventListener('click', () => {
+              this.attachedListeners.delete(deleteKey);
+              this.updateEventContent(index!, type, object, action);
+            }, { once: true });
+          }
+      } else {
+        const validateKey = `red-${index}-validate`;
+        btn = document.getElementById(`${'btnValider-' + index}`);
+        action = 'validate';
+         if (btn && !this.attachedListeners.has(validateKey)) {
+            this.attachedListeners.set(validateKey, true);
+            btn.addEventListener('click', () => {
+              this.attachedListeners.delete(validateKey);
+              this.updateEventContent(index!, type, object, action);
+            }, { once: true });
+          }
+      }
+    }
 
-         });
-       }
-
-       btn = document.getElementById(`${'supprimerSos' + index}`);
-       action = 'delete';
-       if (btn) {
-         btn.addEventListener('click', () => {
-           this.updateEventContent(index!, type, object, action);
-
-
-
-         });
-       }
-     } else if (type == 'red') {
-       if (this.authService.$userinfo?.id == object.userId) {
-         btn = document.getElementById(`${'supprimer' + index}`);
-         action = 'delete';
-          if (btn) {
-                  btn.addEventListener('click', () => {
-                    this.updateEventContent(index!, type, object, action);
-
-                  });
-                }
-       } else { 
-         btn = document.getElementById(`${'btnValider-' + index}`);
-         action = 'validate';
-          if (btn) {
-                  btn.addEventListener('click', () => {
-                    this.updateEventContent(index!, type, object, action);
-                  });
-                }
-       } 
-     }
-
-   }
+  }
 
 
   handleLikesAndDislikes(index: number, type: string, object: any) {
+    const likeKey = `${type}-${index}-like`;
+    const dislikeKey = `${type}-${index}-dislike`;
+
     let likeBtn = document.getElementById(`${'like-' + index}`);
     let dislikeBtn = document.getElementById(`${'dislike-' + index}`);
 
-    if (likeBtn) {
+    if (likeBtn && !this.attachedListeners.has(likeKey)) {
+      this.attachedListeners.set(likeKey, true);
       likeBtn.addEventListener('click', () => {
+        this.attachedListeners.delete(likeKey);
         this.addLikesAndDislikes(index!, type, object, 'like');
-      });
+      }, { once: true });
     }
 
-    if (dislikeBtn) {
+    if (dislikeBtn && !this.attachedListeners.has(dislikeKey)) {
+      this.attachedListeners.set(dislikeKey, true);
       dislikeBtn.addEventListener('click', () => {
+        this.attachedListeners.delete(dislikeKey);
         this.addLikesAndDislikes(index!, type, object, 'dislike');
-      });
+      }, { once: true });
     }
 
     if (type == 'red') {
@@ -4302,7 +4799,6 @@ getIndexMarker(type: string, object: any): number {
         this.sendFeedbackPoint(object, type, feedback);
       }
     } else {
-      console.log('update method runed with index ' + index + ' of no type :(');
     }
   }
 
@@ -4319,13 +4815,11 @@ getIndexMarker(type: string, object: any): number {
     if (isAlreadySelected) {
       // If the user clicked the same button again, deselect it.
       this.newSelectedLvl = undefined;
-      console.log('Affluence level deselected.');
     } else {
       // Otherwise, select the new button.
       clickedButton.classList.remove('border-[#B3B3B3]');
       clickedButton.classList.add('border-[#EB2F06]');
       this.newSelectedLvl = level;
-      console.log(`Affluence level ${level} selected.`);
     }
   }
 
@@ -4341,7 +4835,6 @@ getIndexMarker(type: string, object: any): number {
           resolve(data); // Resolve the promise with user data
         },
         (err) => {
-          console.error('Error fetching profile:', JSON.stringify(err, null, 2));
           reject(err); // Reject the promise on error
         }
       );
@@ -4354,15 +4847,12 @@ getIndexMarker(type: string, object: any): number {
     }
 
     const createdAt = new Date(this.authenticatedUser.created_at);
-    console.log('created at auth user', createdAt);
     const trialEndDate = new Date(createdAt.setMonth(createdAt.getMonth() + 2));
     const currentDate = new Date(createdAt); // remove createdAt to test the trial period
 
-    console.log('current date (system)', currentDate);
     this.isTrialExpired = currentDate > trialEndDate;
 
     const hasRedirected = localStorage.getItem('hasRedirected');
-    console.log('hasRedirected => ', hasRedirected);
     if (this.isTrialExpired && hasRedirected !== 'true') {
       localStorage.setItem('hasRedirected', 'true');
       this.router.navigate(['/premium']);
@@ -4477,7 +4967,6 @@ getIndexMarker(type: string, object: any): number {
             if (stationIndex > -1) {
               // Merge the new data (e.g., the updated 'polyline' string) into our local copy.
               Object.assign(this.greenMarkers[stationIndex], updateData.newData);
-              console.log(`Local cache updated for station ${stationId}`, this.greenMarkers[stationIndex]);
             }
           }
           // --- END FIX ---
@@ -4513,14 +5002,14 @@ getIndexMarker(type: string, object: any): number {
     /*
     if(this.markers){
       // this.enableAffect=true;
-      // console.log('enableAffect',this.enableAffect)
-        }
-        else{
-          this.enableAffect=false;
-          console.log('enableAffect',this.enableAffect)
+      // 
+      // }
+      // else{
+      //   this.enableAffect=false;
+      //   
 
-        }*/
-    console.log(this.markers);
+      // }
+      */
   }
 
   dateStructor(
@@ -4547,7 +5036,6 @@ getIndexMarker(type: string, object: any): number {
   forceMapRefresh() {
     if (this.map) {
       this.map.invalidateSize();
-      console.log('Map refreshed');
     }
   }
 
@@ -4559,7 +5047,6 @@ getIndexMarker(type: string, object: any): number {
    * Method to manually refresh fading for existing points (useful when resuming app)
    */
   public refreshFading() {
-    console.log('Refreshing fading for existing affluence points');
     
     // Clear existing timers
     Object.values(this.affluenceTimers).forEach(clearInterval);
@@ -4588,7 +5075,6 @@ getIndexMarker(type: string, object: any): number {
    * Enhanced ngOnDestroy with better cleanup
    */
   ngOnDestroy(): void {
-    console.log('MapPage destroying, cleaning up timers and intervals');
     
     // Clear position tracking
     if (this.positionUpdateInterval) {
@@ -4625,13 +5111,16 @@ getIndexMarker(type: string, object: any): number {
     // Clear all affluence fading timers
     Object.values(this.affluenceTimers).forEach(timer => clearTimeout(timer as any));
     this.affluenceTimers = {};
+
+    // Clear all event expiry timers
+    Object.values(this.eventExpiryTimers).forEach(timer => clearTimeout(timer as any));
+    this.eventExpiryTimers = {};
   }
 
   /**
    * Enhanced onResume to handle fading when app comes back to foreground
    */
   onResume() {
-    console.log('App resumed, refreshing points and fading');
     this.getAllPoint();
     this.startRealtimeUpdates();
     // Re-check GPS permission and attempt to locate after returning from settings
@@ -4641,6 +5130,13 @@ getIndexMarker(type: string, object: any): number {
     // After points are loaded, refresh fading
     setTimeout(() => {
       this.refreshFading();
+      this.purpleMarkers.forEach(ev => {
+        const normalizedId = this.normalizeId(ev.id);
+        const existsOnMap = this.objectpurpleMarkers.some(obj => this.normalizeId(obj.id) === normalizedId);
+        if (existsOnMap) {
+          this.scheduleEventExpiry(ev);
+        }
+      });
       this.refreshEventMarkersVisibility();
       this.refreshNoteMarkersVisibility();
     }, 1000);
@@ -4663,7 +5159,6 @@ getIndexMarker(type: string, object: any): number {
   }
 
   joinQueue(station: any) {
-    console.log(`Joining queue for station ID: ${station.id}`);
     this.activeQueueStationId = station.id;
     presentToast(`Vous avez rejoint la file d'attente pour ${station.name}.`, 'bottom', 'success');
 
@@ -4672,7 +5167,6 @@ getIndexMarker(type: string, object: any): number {
       const lat = parseFloat(localStorage.getItem('lat') || '0');
       const lng = parseFloat(localStorage.getItem('long') || '0');
       if (lat !== 0 && lng !== 0 && this.activeQueueStationId) {
-        console.log(`Broadcasting position for queue ${this.activeQueueStationId}: [${lat}, ${lng}]`);
         this.queueService.updatePosition(this.activeQueueStationId, lat, lng).subscribe();
       }
     }, 10000); // Broadcast every 10 seconds
@@ -4689,7 +5183,6 @@ getIndexMarker(type: string, object: any): number {
   leaveActiveQueue() {
     if (!this.activeQueueStationId) return;
 
-    console.log(`Leaving queue for station ID: ${this.activeQueueStationId}`);
     this.queueService.leaveQueue(this.activeQueueStationId).subscribe();
     
     // Clear intervals
@@ -4763,10 +5256,8 @@ getIndexMarker(type: string, object: any): number {
         // Ensure it respects the current category filter (hide unless 'station' is active)
         try { this.updatePolylineVisibilityForFilter(); } catch {}
 
-        console.log(`Queue visualization updated with ${positions.length} positions`);
       },
       (err) => {
-        console.error('Error fetching queue positions:', err);
       }
     );
   }

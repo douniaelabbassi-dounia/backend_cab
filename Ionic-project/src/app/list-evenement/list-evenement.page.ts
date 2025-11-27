@@ -68,7 +68,7 @@ export class ListEvenementPage {
     if (event.heureFin) {
         const [endHour, endMinute] = event.heureFin.split(':').map(Number);
         endDateTime = new Date(endDate.getTime());
-        endDateTime.setHours(endHour, endMinute, 59, 999);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
     } else {
         // If no end time, assume it lasts until the end of the final day.
         endDateTime = new Date(endDate.getTime());

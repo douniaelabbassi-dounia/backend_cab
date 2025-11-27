@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.cabsul.fr',
-  appName: 'lesieurtab',
+  appName: 'Cabsul',
   webDir: 'www',
   server: {
     androidScheme: 'https',

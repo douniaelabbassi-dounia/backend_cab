@@ -6,6 +6,17 @@ import { presentToast } from '../utiles/component/notification';
 import { Day } from '../utiles/interface/day-list';
 import { Keyboard } from '@capacitor/keyboard';
 
+const DAY_ALIASES: Record<string, string> = {
+  '0': 'Dim', '7': 'Dim', 'dim': 'Dim', 'dimanche': 'Dim', 'sun': 'Dim', 'sunday': 'Dim',
+  '1': 'Lun', 'lun': 'Lun', 'lundi': 'Lun', 'mon': 'Lun', 'monday': 'Lun',
+  '2': 'Mar', 'mar': 'Mar', 'mardi': 'Mar', 'tue': 'Mar', 'tuesday': 'Mar',
+  '3': 'Mer', 'mer': 'Mer', 'mercredi': 'Mer', 'wed': 'Mer', 'wednesday': 'Mer',
+  '4': 'Jeu', 'jeu': 'Jeu', 'jeudi': 'Jeu', 'thu': 'Jeu', 'thursday': 'Jeu',
+  '5': 'Ven', 'ven': 'Ven', 'vendredi': 'Ven', 'fri': 'Ven', 'friday': 'Ven',
+  '6': 'Sam', 'sam': 'Sam', 'samedi': 'Sam', 'sat': 'Sam', 'saturday': 'Sam',
+  '*': '*'
+};
+
 @Component({
   selector: 'app-update-note',
   templateUrl: './update-note.page.html',
@@ -48,7 +59,8 @@ export class UpdateNotePage implements OnInit {
       displayTimeEnd: false,
     }
     heureDebut: string = '';
-  
+    heureFin: string = '';
+
   pointId: string | null = '';
 
   makeBoxFullHeight:boolean = false;
@@ -90,34 +102,61 @@ export class UpdateNotePage implements OnInit {
       const json = {
         pointId: id,
       };
-  
+
       this.pointsService.$getPoints().subscribe((data: any) => {
         console.log('Données reçues depuis l\'API :', data);
         const notePoint = data.note?.find((point: any) => point.id == id);
-        
+
         if (notePoint) {
           this.lieu = notePoint.lieu || '';
           this.heureDebut = notePoint.heureDebut || '00:00';
-          this.Type = notePoint.type || ''
-          this.destination = notePoint.name || ''
+          this.heureFin = notePoint.heureFin || this.heureDebut;
+          this.Type = notePoint.type || '';
+          const rawDestination = typeof notePoint.name === 'string' ? notePoint.name.trim() : '';
+          const sanitizedLieu = typeof notePoint.lieu === 'string' && notePoint.lieu.length > 0
+            ? notePoint.lieu.split(',')[0].trim()
+            : '';
+          if (!rawDestination || rawDestination.toLowerCase() === 'mémo' || rawDestination === sanitizedLieu) {
+            this.destination = '';
+          } else {
+            this.destination = rawDestination;
+          }
+          this.friendsSelector = notePoint.visibility || 'personne'; // Load visibility setting
+          const lat = parseFloat(notePoint.lat);
+          const lng = parseFloat(notePoint.lng);
+          const hasValidCoords = !isNaN(lat) && !isNaN(lng);
           this.selectedposition = {
             name: notePoint.name,
             display_name: notePoint.lieu,
-            lat: notePoint.lat,
-            lon: notePoint.lng
+            lat: hasValidCoords ? lat : 0,
+            lon: hasValidCoords ? lng : 0
           };
-          this.isLocationValid = true;
-          
+          this.isLocationValid = hasValidCoords;
+          this.isLocationValid = hasValidCoords;
+
           // Reset all days first
           this.dayList.forEach(d => d.activated = false);
           this.selectedDays = [];
 
           const storedDays = (notePoint.date || '').split(',');
-          storedDays.forEach((dayName: string) => {
-            const day = this.dayList.find(d => d.name === dayName.trim());
+          storedDays.forEach((token: string) => {
+            const canonical = this.normalizeDayToken(token);
+            if (!canonical) { return; }
+            if (canonical === '*') {
+              this.dayList.forEach(day => {
+                day.activated = true;
+                if (!this.selectedDays.includes(day.name)) {
+                  this.selectedDays.push(day.name);
+                }
+              });
+              return;
+            }
+            const day = this.dayList.find(d => d.name === canonical);
             if (day) {
               day.activated = true;
-              this.selectedDays.push(day.name);
+              if (!this.selectedDays.includes(day.name)) {
+                this.selectedDays.push(day.name);
+              }
             }
           });
           // console.log('Message :', this.message, 'Numéro de téléphone :', this.phoneNumber);
@@ -129,24 +168,34 @@ export class UpdateNotePage implements OnInit {
       console.log('ID nul : impossible de récupérer les détails.');
     }
   }
-  
+
+  private sanitizeLieu(raw: string): string {
+    if (!raw) return '';
+    const clean = String(raw).replace(/\s+/g, ' ').trim();
+    // Truncate to a safe length to prevent database errors
+    return clean.length > 190 ? clean.slice(0, 190) : clean;
+  }
+
   updatePoint() {
     if (!this.isLocationValid) {
       presentToast('Veuillez sélectionner un lieu valide dans la liste.', 'bottom', 'warning');
       return;
     }
 
+    const trimmedDestination = (this.destination || '').trim();
     const content = {
       pointId: this.pointId,
       type: 'note',
-      name: this.destination,
-      lieu: this.lieu,
-      date: this.selectedDays.join(','),
+      name: trimmedDestination,
+      lieu: this.sanitizeLieu(this.lieu),
+      date: this.selectedDays.map(day => day.trim()).filter(Boolean).join(','),
       heureDebut: this.heureDebut,
-      // type: this.Type, // This was the duplicate
+      heureFin: this.heureFin,
+      friendsSelector: this.friendsSelector,
+      noteType: this.Type,
       lat: this.selectedposition.lat,
       lng: this.selectedposition.lon,
-      address: this.lieu,
+      address: this.sanitizeLieu(this.lieu),
     };
 
     console.log('Contenu mis à jour :', content);
@@ -154,6 +203,10 @@ export class UpdateNotePage implements OnInit {
     this.pointsService.$updatePoint(content).subscribe((data: any) => {
       if (data && data.success === true) {
         presentToast('Note a été modifié avec succès !', 'bottom', 'success');
+        // Store the updated note ID so map can show it immediately regardless of schedule
+        if (this.pointId) {
+          localStorage.setItem('justUpdatedNoteId', this.pointId);
+        }
         this.router.navigate(['map']);
       }
     });
@@ -165,12 +218,17 @@ export class UpdateNotePage implements OnInit {
       console.log("checked form : "+selectedday.name);
       this.checkOruncheck(selectedday.name)
 
-      this.selectedDays.push(selectedday.name);
+      if (!this.selectedDays.includes(selectedday.name)) {
+        this.selectedDays.push(selectedday.name);
+      }
 
     }else{
       console.log("uncheckedform : "+selectedday);
       this.checkOruncheck(selectedday.name)
-      this.selectedDays.splice(this.selectedDays.indexOf(selectedday.name),1)
+      const index = this.selectedDays.indexOf(selectedday.name);
+      if (index !== -1) {
+        this.selectedDays.splice(index,1)
+      }
     }
     console.log("list : "+ this.selectedDays);
   }
@@ -235,6 +293,26 @@ export class UpdateNotePage implements OnInit {
       default:
         break;
     }
+  }
+
+  private normalizeDayToken(token: string): string | null {
+    if (!token) { return null; }
+    const normalized = token.trim().toLowerCase();
+    if (!normalized) { return null; }
+    const alias = DAY_ALIASES[normalized];
+    if (alias) { return alias; }
+    // Attempt numeric parse in case alias map missed a variant
+    const numeric = parseInt(normalized, 10);
+    if (!Number.isNaN(numeric)) {
+      if (numeric >= 0 && numeric <= 6) {
+        const mapping = ['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'];
+        return mapping[numeric];
+      }
+      if (numeric === 7) {
+        return 'Dim';
+      }
+    }
+    return null;
   }
 
   formatDateAndTime(getvalue:string, format:string) :string {

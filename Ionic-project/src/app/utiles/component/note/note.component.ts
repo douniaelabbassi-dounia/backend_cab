@@ -51,6 +51,7 @@ export class NoteComponent  implements OnInit {
     displayTimeEnd: false,
   }
   heureDebut: string = '';
+  heureFin: string = '';
 
   makeBoxFullHeight:boolean = false;
   constructor() { }
@@ -75,14 +76,18 @@ export class NoteComponent  implements OnInit {
 
     if(status){
       console.log("checked form : "+selectedday.name);
-      this.checkOruncheck(selectedday.name)
-      // We now push the day's index (number) instead of the whole object
-      this.selectedDays.push(selectedday.index);
+      this.checkOruncheck(selectedday.name);
+      if (!this.selectedDays.includes(selectedday.name)) {
+        this.selectedDays.push(selectedday.name);
+      }
 
     }else{
       console.log("uncheckedform : "+selectedday);
-      this.checkOruncheck(selectedday.name)
-      this.selectedDays.splice(this.selectedDays.indexOf(selectedday.index),1)
+      this.checkOruncheck(selectedday.name);
+      const index = this.selectedDays.indexOf(selectedday.name);
+      if (index !== -1) {
+        this.selectedDays.splice(index,1);
+      }
     }
     console.log("list : "+ this.selectedDays);
   }
@@ -144,6 +149,11 @@ export class NoteComponent  implements OnInit {
         console.log('( heureDebut ) outside of the component : ' + this.heureDebut);
           break;
 
+      case 'timeEnd':
+         this.heureFin = this.formatDateAndTime(newValue, 'time')
+        console.log('( heureFin ) outside of the component : ' + this.heureFin);
+          break;
+
       default:
         break;
     }
@@ -198,8 +208,8 @@ export class NoteComponent  implements OnInit {
     console.log('Selected Address:', selectedAddress);
     this.selectedposition.name = selectedAddress.name;
     this.selectedposition.display_name = selectedAddress.display_name;
-    this.selectedposition.lat = selectedAddress.lat;
-    this.selectedposition.lon = selectedAddress.lon;
+    this.selectedposition.lat = parseFloat(selectedAddress.lat);
+    this.selectedposition.lon = parseFloat(selectedAddress.lon);
 
     this.lieu = selectedAddress.display_name
     this.isLocationValid = true;
@@ -217,18 +227,35 @@ export class NoteComponent  implements OnInit {
       presentToast('Veuillez sélectionner un lieu valide dans la liste.', 'bottom', 'danger');
       return;
     }
+    if (!this.selectedDays || this.selectedDays.length === 0) {
+      presentToast('Veuillez sélectionner au moins un jour.', 'bottom', 'danger');
+      return;
+    }
+    if (!this.heureDebut) {
+      presentToast('Veuillez sélectionner une heure.', 'bottom', 'danger');
+      return;
+    }
+    const trimmedDestination = (this.destination || '').trim();
+    const trimmedType = (this.Type || '').trim();
     const noteData = {
       lieu: this.lieu,
-      lat:this.selectedposition.lat,
-      lg:this.selectedposition.lon,
-      selectedDays: this.selectedDays,
-      heure: this.heureDebut,
-      type: this.Type,
-      destination: this.destination,
+      lat: this.selectedposition.lat,
+      lg: this.selectedposition.lon,
+      selectedDays: this.selectedDays.map(day => day.trim()).filter(Boolean),
+      heureDebut: this.heureDebut,
+      heureFin: this.heureFin || this.heureDebut, // Default to heureDebut if not set
+      type: trimmedType,
+      destination: trimmedDestination,
       friendsSelector: this.friendsSelector
     };
     // Log the data to the console before emitting it
     console.log("Data to be submitted:", noteData);
+    console.log("[NOTE COMPONENT] heureDebut format check:", {
+      heureDebut: this.heureDebut,
+      heureFin: this.heureFin,
+      heureDebutLength: this.heureDebut.length,
+      heureDebutType: typeof this.heureDebut
+    });
     // Emit the data
     this.submitNote.emit(noteData);
 

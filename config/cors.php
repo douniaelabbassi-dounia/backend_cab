@@ -32,19 +32,24 @@ return [
         // Capacitor/Ionic native schemes
         'capacitor://localhost',
         'ionic://localhost',
+        // Production SiteGround
+        'https://alik144.sg-host.com',
     ],
 
     'allowed_origins_patterns' => [
         // Allow LAN IPs (e.g., http://192.168.x.x:8100, http://10.x.x.x)
         '#^http://(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\.[0-9]+\.[0-9]+(:[0-9]+)?$#',
         '#^https://(192\.168|10\.|172\.(1[6-9]|2[0-9]|3[0-1]))\.[0-9]+\.[0-9]+(:[0-9]+)?$#',
+        // Railway production domains
+        '#^https://.*\.up\.railway\.app$#',
+        '#^https://.*\.railway\.app$#',
     ],
 
     'allowed_headers' => ['*'],
 
     'exposed_headers' => [],
 
-    'max_age' => 0,
+    'max_age' => 86400,
 
     // Using token auth; typically no cookies involved. Keep true for flexibility.
     'supports_credentials' => true,

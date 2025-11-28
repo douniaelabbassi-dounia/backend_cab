@@ -16,9 +16,10 @@ return [
     */
 
     'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
-        '%s%s',
-        'localhost,localhost:3000,127.0.0.1,127.0.0.1:8000,::1',
-        Sanctum::currentApplicationUrlWithPort().',alik144.sg-host.com,localhost:8100'
+        '%s%s%s',
+        'localhost,localhost:3000,localhost:8100,127.0.0.1,127.0.0.1:8000,127.0.0.1:8100,::1,',
+        Sanctum::currentApplicationUrlWithPort().',alik144.sg-host.com,',
+        '*.up.railway.app,*.railway.app,capacitor://localhost,ionic://localhost'
     ))),
 
     /*

@@ -13,9 +13,9 @@ return new class extends Migration
             $table->uuid('user_id')->unique();
             $table->integer('current_points')->default(30);
             $table->integer('max_points')->default(50);
-            $table->date('last_connection');
+            $table->date('last_connection')->nullable();
             $table->timestamps();
-        }); // <-- point-virgule ajouté ici
+        });
     }
 
     public function down(): void

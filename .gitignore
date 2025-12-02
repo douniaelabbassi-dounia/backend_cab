@@ -24,3 +24,7 @@ yarn-error.log
 # Env files
 .env
 .env.*
+
+# Env files
+.env
+.env.*

@@ -1,4 +1,11 @@
 <?php
-// helpers globaux (ex : fonctions utilitaires)
-// Ajoute ici les fonctions que ton projet utilise.
-// Exemple : if (!function_exists('my_helper')) { function my_helper() { return true; } }
+// app/Helpers/helpers.php
+// Fichier helper minimal pour éviter l'erreur post-autoload-dump.
+// Ajoute ici tes fonctions utilitaires si besoin.
+
+if (! function_exists('app_helper_example')) {
+    function app_helper_example(): bool
+    {
+        return true;
+    }
+}
